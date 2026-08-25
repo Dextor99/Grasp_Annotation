@@ -1,6 +1,8 @@
 import io
 import time
 import unittest
+import tempfile
+from pathlib import Path
 from contextlib import redirect_stdout
 
 from profiling import ProfileRecorder
@@ -37,6 +39,17 @@ class ProfileRecorderTests(unittest.TestCase):
         self.assertIn("2112", output.getvalue())
         self.assertIn("depth", output.getvalue())
         self.assertIn("collision_free", output.getvalue())
+
+    def test_matrix_counts_write_variant_depth_csv(self):
+        recorder = ProfileRecorder(enabled=True)
+        recorder.matrix_count("variant_depth", 2, 30, "candidate")
+        recorder.matrix_count("variant_depth", 2, 30, "collision_free")
+        with tempfile.TemporaryDirectory() as directory:
+            output_path = Path(directory) / "matrix.csv"
+            recorder.write_matrix_csv(output_path)
+            rows = output_path.read_text(encoding="utf-8").splitlines()
+        self.assertEqual(rows[0], "variant_id,depth,candidate,collision_free,final")
+        self.assertEqual(rows[1], "2,30,1,1,0")
 
 
 if __name__ == "__main__":

@@ -807,6 +807,8 @@ def grasp_detect(ply_path,i):
             variant_id = candidate.get('base_id', candidate.get('id'))
             if variant_id is not None:
                 profiler.group_count("variant", variant_id, phase)
+                if 'depth' in candidate:
+                    profiler.matrix_count("variant_depth", variant_id, candidate['depth'], phase)
 
     record_candidate_funnel(moved_gripper_variants, "candidate")
     #合并所有夹爪网络
