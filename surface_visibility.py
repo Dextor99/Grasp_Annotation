@@ -13,10 +13,13 @@ def _as_finite_vectors(values, name):
 
 
 def filter_front_facing_surface(points, normals, view_direction, min_dot=1e-8):
-    """Filter surface samples whose normals face ``view_direction``.
+    """Filter surface samples whose normals face a virtual camera.
 
-    Returns the retained points, their normalized normals, and a boolean mask
-    aligned with the input points. Zero-length normals are always excluded.
+    ``view_direction`` points from the object to the virtual camera. A sample
+    is retained iff its normalized normal dot the normalized view direction is
+    greater than ``min_dot`` (default ``1e-8``). Returns the retained points,
+    their normalized normals, and a boolean mask aligned with the input points.
+    Zero-length normals are always excluded.
     """
     points = _as_finite_vectors(points, "points")
     normals = _as_finite_vectors(normals, "normals")
