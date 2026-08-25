@@ -29,6 +29,7 @@ class ProfileRecorder:
         self.enabled = bool(enabled)
         self.records: list[ProfileRecord] = []
         self.counts: dict[str, int | float] = {}
+        self.group_counts: dict[str, dict[str, dict[str, int]]] = {}
         self._token = None
 
     def __enter__(self) -> "ProfileRecorder":
@@ -53,7 +54,7 @@ class ProfileRecorder:
             self.records.append(ProfileRecord(name, time.perf_counter() - started))
 
     def print_report(self) -> None:
-        if not self.enabled or (not self.records and not self.counts):
+        if not self.enabled or (not self.records and not self.counts and not self.group_counts):
             return
         total = sum(record.seconds for record in self.records)
         print("\n=== Grasp pipeline profiling ===")
@@ -68,11 +69,34 @@ class ProfileRecorder:
             print("\n=== Candidate counts ===")
             for name, value in self.counts.items():
                 print(f"{name:40} {value}")
+        for group_name, groups in self.group_counts.items():
+            print(f"\n=== {group_name} funnel ===")
+            print(f"{'id':>12} {'candidate':>12} {'collision_free':>16} {'final':>12}")
+            def sort_key(group_id):
+                try:
+                    return (0, float(group_id))
+                except (TypeError, ValueError):
+                    return (1, str(group_id))
+
+            for group_id in sorted(groups, key=sort_key):
+                phases = groups[group_id]
+                print(
+                    f"{str(group_id):>12} {phases.get('candidate', 0):12d} "
+                    f"{phases.get('collision_free', 0):16d} {phases.get('final', 0):12d}"
+                )
 
     def count(self, name: str, value) -> None:
         """Record a candidate/cardinality metric when profiling is enabled."""
         if self.enabled:
             self.counts[name] = value
+
+    def group_count(self, group_name: str, group_id, phase: str, amount: int = 1) -> None:
+        """Record a candidate funnel count grouped by depth or variant."""
+        if not self.enabled:
+            return
+        group = self.group_counts.setdefault(group_name, {})
+        phases = group.setdefault(str(group_id), {})
+        phases[phase] = phases.get(phase, 0) + amount
 
     def measure(self, name: str, function, *args, **kwargs):
         """Call *function* and record its duration without changing its result."""

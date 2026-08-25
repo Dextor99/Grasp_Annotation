@@ -20,6 +20,8 @@ class ProfileRecorderTests(unittest.TestCase):
     def test_enabled_recorder_collects_stage_and_reports_percentage(self):
         recorder = ProfileRecorder(enabled=True)
         recorder.count("candidates.input", 2112)
+        recorder.group_count("depth", "0", "candidate")
+        recorder.group_count("depth", "0", "collision_free")
         with recorder:
             with recorder.stage("load"):
                 time.sleep(0.001)
@@ -33,6 +35,8 @@ class ProfileRecorderTests(unittest.TestCase):
         self.assertIn("100.0%", output.getvalue())
         self.assertIn("candidates.input", output.getvalue())
         self.assertIn("2112", output.getvalue())
+        self.assertIn("depth", output.getvalue())
+        self.assertIn("collision_free", output.getvalue())
 
 
 if __name__ == "__main__":

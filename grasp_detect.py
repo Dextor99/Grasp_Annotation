@@ -800,6 +800,15 @@ def grasp_detect(ply_path,i):
         max_distance=150,
     )
     profiler.count("candidates.before_collision", len(moved_gripper_variants))
+    def record_candidate_funnel(candidates, phase):
+        for candidate in candidates:
+            if 'depth' in candidate:
+                profiler.group_count("depth", candidate['depth'], phase)
+            variant_id = candidate.get('base_id', candidate.get('id'))
+            if variant_id is not None:
+                profiler.group_count("variant", variant_id, phase)
+
+    record_candidate_funnel(moved_gripper_variants, "candidate")
     #合并所有夹爪网络
     all_meshes = []
     for item in moved_gripper_variants:
@@ -821,6 +830,7 @@ def grasp_detect(ply_path,i):
         threshold=3.0,
     )
     profiler.count("candidates.collision_free", len(non_colliding_grippers))
+    record_candidate_funnel(non_colliding_grippers, "collision_free")
     # 展示无碰撞的所有夹爪
     non_colliding_grippers_mesh_list = []
     for g in non_colliding_grippers:
@@ -870,6 +880,7 @@ def grasp_detect(ply_path,i):
 ##########################OBB包围盒检测内部点云
     filtered = filter_grippers_with_pointcloud_intersection(min_opening_grippers, T_object_world, cloud_down, min_points_threshold=5,normals_world_all=normals_world_all)
     profiler.count("candidates.final_intersection", len(filtered))
+    record_candidate_funnel(filtered, "final")
     candidate_grippers_meshes = []
     for k in filtered:
         candidate_grippers_meshes.extend(k['meshes'])
