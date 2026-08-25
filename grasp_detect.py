@@ -775,6 +775,7 @@ def grasp_detect(ply_path,i):
         step_open=15,
         max_open=150,
     )
+    profiler.count("candidates.gripper_variants", len(gripper_variants))
     # 合并所有夹爪网格
     all_gripper_meshes = []
     for variant in gripper_variants:
@@ -798,6 +799,7 @@ def grasp_detect(ply_path,i):
         step_mm=10,
         max_distance=150,
     )
+    profiler.count("candidates.before_collision", len(moved_gripper_variants))
     #合并所有夹爪网络
     all_meshes = []
     for item in moved_gripper_variants:
@@ -818,6 +820,7 @@ def grasp_detect(ply_path,i):
         point_cloud=cloud_down,
         threshold=3.0,
     )
+    profiler.count("candidates.collision_free", len(non_colliding_grippers))
     # 展示无碰撞的所有夹爪
     non_colliding_grippers_mesh_list = []
     for g in non_colliding_grippers:
@@ -829,6 +832,7 @@ def grasp_detect(ply_path,i):
         filter_by_min_opening_per_depth_angle,
         non_colliding_grippers,
     )
+    profiler.count("candidates.after_min_opening", len(min_opening_grippers))
     min_opening_grippers_meshes = []
     for g in min_opening_grippers:
         min_opening_grippers_meshes.extend(g['meshes'])
@@ -865,6 +869,7 @@ def grasp_detect(ply_path,i):
 
 ##########################OBB包围盒检测内部点云
     filtered = filter_grippers_with_pointcloud_intersection(min_opening_grippers, T_object_world, cloud_down, min_points_threshold=5,normals_world_all=normals_world_all)
+    profiler.count("candidates.final_intersection", len(filtered))
     candidate_grippers_meshes = []
     for k in filtered:
         candidate_grippers_meshes.extend(k['meshes'])

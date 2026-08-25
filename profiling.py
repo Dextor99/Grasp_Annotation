@@ -28,6 +28,7 @@ class ProfileRecorder:
             enabled = os.getenv("GRASP_PROFILE", "").strip().lower() in {"1", "true", "yes", "on"}
         self.enabled = bool(enabled)
         self.records: list[ProfileRecord] = []
+        self.counts: dict[str, int | float] = {}
         self._token = None
 
     def __enter__(self) -> "ProfileRecorder":
@@ -52,16 +53,26 @@ class ProfileRecorder:
             self.records.append(ProfileRecord(name, time.perf_counter() - started))
 
     def print_report(self) -> None:
-        if not self.enabled or not self.records:
+        if not self.enabled or (not self.records and not self.counts):
             return
         total = sum(record.seconds for record in self.records)
         print("\n=== Grasp pipeline profiling ===")
-        print(f"{'stage':40} {'seconds':>10} {'share':>8}")
-        print("-" * 62)
-        for record in self.records:
-            share = (record.seconds / total * 100.0) if total else 0.0
-            print(f"{record.name:40} {record.seconds:10.4f} {share:7.1f}%")
-        print(f"{'sum of measured stages':40} {total:10.4f}")
+        if self.records:
+            print(f"{'stage':40} {'seconds':>10} {'share':>8}")
+            print("-" * 62)
+            for record in self.records:
+                share = (record.seconds / total * 100.0) if total else 0.0
+                print(f"{record.name:40} {record.seconds:10.4f} {share:7.1f}%")
+            print(f"{'sum of measured stages':40} {total:10.4f}")
+        if self.counts:
+            print("\n=== Candidate counts ===")
+            for name, value in self.counts.items():
+                print(f"{name:40} {value}")
+
+    def count(self, name: str, value) -> None:
+        """Record a candidate/cardinality metric when profiling is enabled."""
+        if self.enabled:
+            self.counts[name] = value
 
     def measure(self, name: str, function, *args, **kwargs):
         """Call *function* and record its duration without changing its result."""
