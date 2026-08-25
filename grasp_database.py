@@ -28,11 +28,13 @@ def _valid_pose(grasp):
     if not np.allclose(pose[3], [0.0, 0.0, 0.0, 1.0], atol=1e-8):
         return None
     rotation = pose[:3, :3]
-    if not np.allclose(rotation.T @ rotation, np.eye(3), atol=1e-6):
+    if not np.allclose(rotation.T @ rotation, np.eye(3), rtol=0.0, atol=1e-8):
         return None
-    if not np.isclose(np.linalg.det(rotation), 1.0, atol=1e-6):
+    if not np.isclose(np.linalg.det(rotation), 1.0, rtol=0.0, atol=1e-8):
         return None
-    return pose
+    canonical_pose = pose.copy()
+    canonical_pose[:3, :3] = Rotation.from_matrix(rotation).as_matrix()
+    return canonical_pose
 
 
 def _finite_number(value):
@@ -87,6 +89,13 @@ def _normalised_direction(value):
     return None if length <= 0.0 else (direction / length).tolist()
 
 
+def _view_id(value):
+    """Return an integer view identifier, using -1 for absent or invalid values."""
+    if isinstance(value, (bool, np.bool_)) or not isinstance(value, (int, np.integer)):
+        return -1
+    return int(value)
+
+
 def _record(grasp, index, pose):
     rotation = pose[:3, :3]
     opening = _finite_number(grasp.get("opening", grasp.get("gripper_width")))
@@ -99,7 +108,7 @@ def _record(grasp, index, pose):
         "opening": opening,
         "gripper_width": opening,
         "score_total": total,
-        "view_id": _json_safe(grasp.get("view_id")),
+        "view_id": _view_id(grasp.get("view_id")),
         "view_direction": _normalised_direction(grasp.get("view_direction")),
     }
     for key, value in grasp.items():
@@ -117,7 +126,7 @@ def _record(grasp, index, pose):
 
 
 def save_grasp_dataset(grasps, output_directory, metadata):
-    """Write validated grasp annotations as JSON, NPZ, and metadata JSON files."""
+    """Write validated grasp annotations; non-integer view IDs are stored as -1."""
     output_directory = Path(output_directory)
     output_directory.mkdir(parents=True, exist_ok=True)
     records = []
@@ -137,7 +146,7 @@ def save_grasp_dataset(grasps, output_directory, metadata):
     quaternions = np.asarray([record["quaternion_xyzw"] for record in records], dtype=float).reshape((-1, 4))
     openings = np.asarray([record["opening"] if record["opening"] is not None else np.nan for record in records], dtype=float)
     scores = np.asarray([record["score_total"] if record["score_total"] is not None else np.nan for record in records], dtype=float)
-    view_ids = np.asarray([record["view_id"] if isinstance(record["view_id"], (int, float)) else -1 for record in records], dtype=int)
+    view_ids = np.asarray([record["view_id"] for record in records], dtype=int)
 
     paths = GraspDatasetPaths(
         output_directory / "grasps.json", output_directory / "grasps.npz", output_directory / "meta.json", len(records)

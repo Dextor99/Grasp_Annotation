@@ -101,6 +101,39 @@ class GraspDatabaseTests(unittest.TestCase):
             with np.load(result.npz_path) as dataset:
                 self.assertEqual(dataset["poses"].shape, (1, 4, 4))
 
+    def test_rejects_rotation_perturbations_that_cannot_roundtrip_rigidly(self):
+        perturbed = np.eye(4)
+        perturbed[0, 0] = 1.000005
+        with tempfile.TemporaryDirectory() as directory:
+            result = save_grasp_dataset([
+                {"T_gripper_object": perturbed},
+                {"T_gripper_object": np.eye(4)},
+            ], directory, {})
+            self.assertEqual(result.saved_count, 1)
+            record = json.loads(result.json_path.read_text(encoding="utf-8"))[0]
+            with np.load(result.npz_path) as dataset:
+                rotation = dataset["rotations"][0]
+                np.testing.assert_allclose(dataset["poses"][0, :3, :3], rotation)
+            np.testing.assert_allclose(rotation.reshape(-1), record["rotation"])
+            np.testing.assert_allclose(
+                rotation,
+                __import__("scipy").spatial.transform.Rotation.from_quat(record["quaternion_xyzw"]).as_matrix(),
+            )
+
+    def test_invalid_view_ids_use_negative_one_in_json_and_npz(self):
+        grasps = [
+            {"T_gripper_object": np.eye(4), "view_id": 2.5},
+            {"T_gripper_object": np.eye(4), "view_id": "2"},
+            {"T_gripper_object": np.eye(4), "view_id": True},
+            {"T_gripper_object": np.eye(4), "view_id": np.int64(4)},
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            result = save_grasp_dataset(grasps, directory, {})
+            records = json.loads(result.json_path.read_text(encoding="utf-8"))
+            self.assertEqual([record["view_id"] for record in records], [-1, -1, -1, 4])
+            with np.load(result.npz_path) as dataset:
+                np.testing.assert_array_equal(dataset["view_ids"], [-1, -1, -1, 4])
+
 
 class MainTests(unittest.TestCase):
     def test_parser_only_accepts_supported_view_counts(self):
