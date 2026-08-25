@@ -59,8 +59,8 @@ def grasp_detect_from_surface(surface_points, surface_normals, view_direction, m
 
 
 def _make_view_frame(surface_points, view_direction):
-    """Build a right-handed frame whose z axis points from object to camera."""
-    z_axis = np.asarray(view_direction, dtype=float)
+    """Build a right-handed gripper frame whose z axis approaches the object from camera."""
+    z_axis = -np.asarray(view_direction, dtype=float)
     reference = np.eye(3)[np.argmin(np.abs(z_axis))]
     x_axis = np.cross(reference, z_axis)
     x_axis /= np.linalg.norm(x_axis)

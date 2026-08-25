@@ -60,6 +60,24 @@ class SurfaceGraspDetectionTests(unittest.TestCase):
         self.assertEqual(result[0]["object_id"], "mug-7")
         self.assertEqual(metadata, {"object_id": "mug-7"})
 
+    def test_camera_view_uses_opposite_gripper_axis_and_front_contact(self):
+        points = np.array([
+            [0.0, 0.0, -2.0],
+            [0.0, 0.0, -1.0],
+            [0.0, 0.0, 1.0],
+        ])
+        frame = grasp_detect._make_view_frame(points, np.array([0.0, 0.0, 1.0]))
+
+        np.testing.assert_allclose(frame["z_axis"], [0.0, 0.0, -1.0])
+        _, _, contact, _ = grasp_detect.generate_cylinder_sections(
+            frame["origin"], points, frame, cyl_radius=1.0, offset=1.0, height=1.0
+        )
+        np.testing.assert_allclose(contact, [0.0, 0.0, 1.0])
+
+        with patch.object(grasp_detect, "_generate_surface_candidates", return_value=[]) as core:
+            grasp_detect.grasp_detect_from_surface(points, np.zeros_like(points), [0.0, 0.0, 1.0])
+        np.testing.assert_allclose(core.call_args.args[1]["z_axis"], [0.0, 0.0, -1.0])
+
     def test_returns_no_candidates_when_cylinder_has_no_valid_contact(self):
         with patch.object(
             grasp_detect,
