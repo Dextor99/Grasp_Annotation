@@ -3,7 +3,8 @@ from unittest.mock import patch
 
 import numpy as np
 
-from multi_view_grasp import generate_multi_view_grasps
+import multi_view_grasp
+from multi_view_grasp import _load_cloud, generate_multi_view_grasps
 
 
 class MultiViewGraspTests(unittest.TestCase):
@@ -86,6 +87,59 @@ class MultiViewGraspTests(unittest.TestCase):
             )
 
         self.assertEqual(result.grasps[0]["score_total"], float("-inf"))
+
+    def test_loader_reestimates_zero_normals_into_usable_oriented_normals(self):
+        cloud = multi_view_grasp.o3d.geometry.PointCloud()
+        cloud.points = multi_view_grasp.o3d.utility.Vector3dVector([
+            [0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0],
+        ])
+        cloud.normals = multi_view_grasp.o3d.utility.Vector3dVector(np.zeros((4, 3)))
+
+        with patch.object(multi_view_grasp.o3d.io, "read_point_cloud", return_value=cloud) as read:
+            _, normals = _load_cloud("synthetic.ply")
+
+        read.assert_called_once_with("synthetic.ply")
+        self.assertEqual(normals.shape, (4, 3))
+        self.assertTrue(np.all(np.isfinite(normals)))
+        self.assertTrue(np.all(np.linalg.norm(normals, axis=1) > 0.0))
+
+    def test_scorer_mutation_does_not_change_detector_owned_candidate(self):
+        candidate = {
+            "T_gripper_object": np.eye(4),
+            "nested": {"values": np.array([1.0, 2.0])},
+        }
+
+        def scorer(grasps, _):
+            grasps[0]["nested"]["values"][0] = 99.0
+            grasps[0]["scored"] = True
+            return grasps
+
+        with patch("multi_view_grasp.filter_front_facing_surface", return_value=(np.zeros((1, 3)), np.array([[0.0, 0.0, 1.0]]), np.array([True]))):
+            result = generate_multi_view_grasps(
+                "ignored", 1,
+                loader=lambda _: (np.zeros((1, 3)), np.array([[0.0, 0.0, 1.0]])),
+                detector=lambda *_: [candidate],
+                scorer=scorer,
+                deduplicate=False,
+            )
+
+        np.testing.assert_array_equal(candidate["nested"]["values"], [1.0, 2.0])
+        self.assertNotIn("scored", candidate)
+        np.testing.assert_array_equal(result.grasps[0]["nested"]["values"], [99.0, 2.0])
+        self.assertTrue(result.grasps[0]["scored"])
+
+    def test_scorer_returning_no_candidates_marks_view_skipped(self):
+        with patch("multi_view_grasp.filter_front_facing_surface", return_value=(np.zeros((1, 3)), np.array([[0.0, 0.0, 1.0]]), np.array([True]))):
+            result = generate_multi_view_grasps(
+                "ignored", 1,
+                loader=lambda _: (np.zeros((1, 3)), np.array([[0.0, 0.0, 1.0]])),
+                detector=lambda *_: [{"T_gripper_object": np.eye(4)}],
+                scorer=lambda *_: [],
+            )
+
+        self.assertEqual(result.grasps, [])
+        self.assertEqual(result.view_candidate_counts, {0: 1})
+        self.assertEqual(result.skipped_views, [{"view_id": 0, "reason": "no_candidates"}])
 
 
 if __name__ == "__main__":

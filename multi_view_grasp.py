@@ -5,6 +5,7 @@ self-occlusion or provide true ray-cast visibility.
 """
 
 from dataclasses import dataclass
+import copy
 import math
 
 import numpy as np
@@ -34,11 +35,26 @@ def _load_cloud(path):
         raise ValueError("PLY points must be finite")
 
     normals = np.asarray(cloud.normals, dtype=float)
-    if normals.shape != points.shape:
-        cloud.estimate_normals()
+    normal_lengths = np.linalg.norm(normals, axis=1) if normals.shape == points.shape else np.array([])
+    if (
+        normals.shape != points.shape
+        or not np.all(np.isfinite(normals))
+        or not np.all(np.isfinite(normal_lengths))
+        or np.any(normal_lengths <= 0.0)
+    ):
+        cloud.estimate_normals(
+            search_param=o3d.geometry.KDTreeSearchParamKNN(knn=min(30, len(points)))
+        )
+        cloud.orient_normals_consistent_tangent_plane(k=min(10, len(points) - 1))
         normals = np.asarray(cloud.normals, dtype=float)
-    if normals.shape != points.shape or not np.all(np.isfinite(normals)):
-        raise ValueError("PLY normals must have shape (N, 3) and be finite")
+        normal_lengths = np.linalg.norm(normals, axis=1)
+    if (
+        normals.shape != points.shape
+        or not np.all(np.isfinite(normals))
+        or not np.all(np.isfinite(normal_lengths))
+        or np.any(normal_lengths <= 0.0)
+    ):
+        raise ValueError("PLY normals must have shape (N, 3), be finite, and be non-zero")
     return points, normals
 
 
@@ -100,21 +116,24 @@ def generate_multi_view_grasps(
             continue
 
         normalized_view = view / np.linalg.norm(view)
-        candidates = detector(
+        detector_candidates = detector(
             visible_points, visible_normals, normalized_view, {"view_id": view_id}
         )
-        candidates = [] if candidates is None else list(candidates)
-        view_candidate_counts[view_id] = len(candidates)
-        if not candidates:
+        detector_candidates = [] if detector_candidates is None else list(detector_candidates)
+        view_candidate_counts[view_id] = len(detector_candidates)
+        if not detector_candidates:
             skipped_views.append({"view_id": view_id, "reason": "no_candidates"})
             continue
 
-        scored = scorer(candidates, cloud)
-        scored = candidates if scored is None else scored
-        for candidate in scored:
-            if not isinstance(candidate, dict):
-                continue
-            grasp = dict(candidate)
+        owned_candidates = [copy.deepcopy(candidate) for candidate in detector_candidates]
+        scored = scorer(owned_candidates, cloud)
+        scored = owned_candidates if scored is None else scored
+        owned_scored = [copy.deepcopy(candidate) for candidate in scored if isinstance(candidate, dict)]
+        if not owned_scored:
+            skipped_views.append({"view_id": view_id, "reason": "no_candidates"})
+            continue
+        for candidate in owned_scored:
+            grasp = candidate
             grasp["view_id"] = view_id
             grasp["view_direction"] = normalized_view.copy()
             grasp["score_total"] = _score_total(grasp)
