@@ -4,6 +4,7 @@ import open3d as o3d
 import numpy as np
 import copy
 from sklearn.neighbors import KDTree
+from profiling import active_profiler, profiled
 
 
 def estimate_normals(pcd, radius=0.05, max_nn=30):
@@ -126,12 +127,14 @@ def project_to_plane(pts, plane_point, plane_normal):
     d = np.dot(v, n)
     return pts - np.outer(d, n)
 
+@profiled("cloud.frames_process.total")
 def frames_process(ply_path,
          voxel_ratio=0.01,
          n_samples=500,
          extra_offset=100):
     # 1. 读点云
-    pcd = o3d.io.read_point_cloud(ply_path)
+    profiler = active_profiler()
+    pcd = profiler.measure("cloud.load_point_cloud", o3d.io.read_point_cloud, ply_path)
     ##单位转换
     pcd.points = o3d.utility.Vector3dVector(np.asarray(pcd.points) * 1000)  # m -> mm
     print(f"Loaded: {ply_path}, pts = {len(pcd.points)}")
@@ -140,12 +143,12 @@ def frames_process(ply_path,
     bounds = pcd.get_max_bound() - pcd.get_min_bound()
     voxel_size = max(bounds) * voxel_ratio
     print(f"Auto voxel_size = {voxel_size:.6f}")
-    down = pcd.voxel_down_sample(voxel_size)
+    down = profiler.measure("cloud.voxel_down_sample", pcd.voxel_down_sample, voxel_size)
     print(f"Downsampled pts = {len(down.points)}")
 
     # 3. 法线 & KD 树
-    estimate_normals(down)
-    _ = build_kdtree(down)
+    profiler.measure("cloud.estimate_normals", estimate_normals, down)
+    profiler.measure("cloud.build_kdtree", build_kdtree, down)
 
     # 3.5 建立物体坐标系：基于 OBB 最小包围盒
     # obb = down.get_oriented_bounding_box()
@@ -217,7 +220,7 @@ def frames_process(ply_path,
     # 6. 球面斐波那契采样
     dirs = fibonacci_sphere(n_samples)
     obj_x_axis = obj_axes[:, 0]  # 假设你已有物体坐标系x轴
-    frames = build_local_frames(dirs, center, sample_radius, obj_x_axis)
+    frames = profiler.measure("cloud.build_local_frames", build_local_frames, dirs, center, sample_radius, obj_x_axis)
     # 7. 投影
     projections = []
     sample_points = dirs * sample_radius + center

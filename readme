@@ -42,3 +42,16 @@ for i, g in enumerate(candidate_grippers):
     print(f"Gripper #{i} score_force_closure: {score}")
 
 
+性能分析
+--------
+
+当前最终入口为 `grasp_score_calculate.py`。性能计时默认关闭；在项目根目录执行：
+
+```powershell
+$env:GRASP_PROFILE = "1"
+F:\Miniconda\envs\py310\python.exe .\grasp_score_calculate.py
+```
+
+程序结束后会输出各阶段秒数和占比，包含点云读取、体素下采样、法线估计、KD 树、frame 生成、夹爪候选生成、沿 Z 轴移动、碰撞筛选、评分、Top-K 和可视化。计时由 `profiling.py` 提供，不开启环境变量时不会改变原有输出。
+
+

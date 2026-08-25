@@ -5,7 +5,9 @@ from grasp_detect import grasp_detect
 from numpy.linalg import norm
 import csv
 from datetime import datetime
+from profiling import profiled
 
+@profiled("score_v3.compute_grasp_scores")
 def compute_grasp_scores_simple(candidate_grippers, pcd,vis=False):
     """
     计算夹爪抓取评分的前8个指标：

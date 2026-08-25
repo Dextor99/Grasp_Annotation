@@ -5,6 +5,7 @@ import numpy as np
 import copy
 from cloud_process import frames_process
 from gripper_model import create_gripper_model
+from profiling import active_profiler, profiled
 
 def generate_cylinder_sections(origin,pcd_points, frame, cyl_radius=75.0, offset=100.0, height=1.0):
     """
@@ -653,23 +654,27 @@ def visualize_gripper_origins_from_object_frame(moved_grippers, T_object_world, 
         spheres.append(sphere)
     return spheres
 
+@profiled("detect.grasp_detect.total")
 def grasp_detect(ply_path,i):
     #下采样的物体点云，AABB包围框中心坐标，物体坐标系，采样点，采样平面坐标系集合，世界坐标系，采样平面，采样平面坐标系物理模型，物体到世界转换矩阵
-    cloud_down, obj_center, obj_axes, sample_points, frames, object_world_axis, projections, frame_arrows_list, T_object_world = frames_process(
-        ply_path)
+    profiler = active_profiler()
+    cloud_down, obj_center, obj_axes, sample_points, frames, object_world_axis, projections, frame_arrows_list, T_object_world = profiler.measure(
+        "detect.frames_process", frames_process, ply_path)
 
     frame = frames[i - 1]
     # 获取点云坐标（从 pcd 或 downsampled 点云）
     pts = np.asarray(cloud_down.points)  # 或 frames_process 中直接返回
     origin = frame['origin']
     # origin = frame['origin'] + frame['x_axis']*75 - frame['y_axis']*10
-    cyl0, cyl1, center0, center1 = generate_cylinder_sections(
+    cyl0, cyl1, center0, center1 = profiler.measure(
+        "detect.cylinder_sections",
+        generate_cylinder_sections,
         origin,
         pcd_points=pts,
         frame=frame,
-        cyl_radius=75.0,  # 直径 150mm
-        offset=40.0,  # 第二截面延申 100mm
-        height=1.0  # 扁平圆盘
+        cyl_radius=75.0,
+        offset=40.0,
+        height=1.0,
     )
 
 ##########################创建了中间开口为0 的夹爪
@@ -704,14 +709,16 @@ def grasp_detect(ply_path,i):
 
 ######################生成系列夹爪
 
-    gripper_variants = generate_gripper_variants(
+    gripper_variants = profiler.measure(
+        "detect.generate_gripper_variants",
+        generate_gripper_variants,
         base_gripper=custom_gripper['model'],
-        T_object_world = T_object_world,
-        T_gripper_object = T_gripper_object,
+        T_object_world=T_object_world,
+        T_gripper_object=T_gripper_object,
         step_deg=15,
         max_deg=179,
         step_open=15,
-        max_open=150
+        max_open=150,
     )
     # 合并所有夹爪网格
     all_gripper_meshes = []
@@ -728,11 +735,13 @@ def grasp_detect(ply_path,i):
 
 #################生成沿Z轴平移的夹爪系列
     # 第二步：每个夹爪沿自身Z轴平移生成新夹爪集合
-    moved_gripper_variants = slide_gripper_along_z(
+    moved_gripper_variants = profiler.measure(
+        "detect.slide_grippers",
+        slide_gripper_along_z,
         gripper_variants=gripper_variants,
         T_object_world=T_object_world,
         step_mm=10,
-        max_distance=150
+        max_distance=150,
     )
     #合并所有夹爪网络
     all_meshes = []
@@ -747,10 +756,12 @@ def grasp_detect(ply_path,i):
 
 ######################碰撞检测
     # 假设点云为 cloud_down，夹爪集合为 moved_gripper_variants
-    non_colliding_grippers = filter_collision_free_grippers(
+    non_colliding_grippers = profiler.measure(
+        "detect.collision_filter",
+        filter_collision_free_grippers,
         moved_gripper_variants,
         point_cloud=cloud_down,
-        threshold=3.0  # 单位：mm
+        threshold=3.0,
     )
     # 展示无碰撞的所有夹爪
     non_colliding_grippers_mesh_list = []
@@ -758,16 +769,22 @@ def grasp_detect(ply_path,i):
         non_colliding_grippers_mesh_list.extend(g['meshes'])
 
 ######################保留每层开口最小的不同角度的夹爪
-    min_opening_grippers = filter_by_min_opening_per_depth_angle(non_colliding_grippers)
+    min_opening_grippers = profiler.measure(
+        "detect.min_opening_filter",
+        filter_by_min_opening_per_depth_angle,
+        non_colliding_grippers,
+    )
     min_opening_grippers_meshes = []
     for g in min_opening_grippers:
         min_opening_grippers_meshes.extend(g['meshes'])
 
 ######################物体点云法线估计
-    cloud_down.estimate_normals(
-        search_param=o3d.geometry.KDTreeSearchParamHybrid(radius=20, max_nn=30)
+    profiler.measure(
+        "detect.final_normal_estimation",
+        cloud_down.estimate_normals,
+        search_param=o3d.geometry.KDTreeSearchParamHybrid(radius=20, max_nn=30),
     )
-    cloud_down.orient_normals_consistent_tangent_plane(k=10)
+    profiler.measure("detect.final_normal_orientation", cloud_down.orient_normals_consistent_tangent_plane, k=10)
     normals_world_all = np.asarray(cloud_down.normals)
 
 # #######################去掉开口为0 且二指之间无物体点云的夹爪

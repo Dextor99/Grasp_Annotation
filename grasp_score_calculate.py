@@ -5,7 +5,9 @@ from grasp_detect import grasp_detect
 from numpy.linalg import norm
 import csv
 from datetime import datetime
+from profiling import ProfileRecorder, active_profiler, profiled
 
+@profiled("score.compute_grasp_scores")
 def compute_grasp_scores_simple(candidate_grippers, pcd,vis=False):
     """
     计算夹爪抓取评分的前8个指标：
@@ -340,25 +342,27 @@ def evaluate_grasp_final_score(candidate_grippers):
         'score_zmax': 0.0892
     }
 
-    for g in candidate_grippers:
-        val_force = g.get('score_force_closure', 0.0)
-        val_inner = g.get('score_inner_points_ratio', 0.0)
-        val_proj = g.get('score_proj_area_ratio', 0.0)
-        val_zmax = g.get('score_zmax', 0.0)
+    profiler = active_profiler()
+    with profiler.stage("score.final_score_regression"):
+        for g in candidate_grippers:
+            val_force = g.get('score_force_closure', 0.0)
+            val_inner = g.get('score_inner_points_ratio', 0.0)
+            val_proj = g.get('score_proj_area_ratio', 0.0)
+            val_zmax = g.get('score_zmax', 0.0)
 
         # 如果有None值，替换为0
-        values = [val_force, val_inner, val_proj, val_zmax]
-        values = [0.0 if v is None else v for v in values]
+            values = [val_force, val_inner, val_proj, val_zmax]
+            values = [0.0 if v is None else v for v in values]
 
-        score = (
-            theta['intercept']
-            + theta['score_force_closure'] * values[0]
-            + theta['score_inner_points_ratio'] * values[1]
-            + theta['score_proj_area_ratio'] * values[2]
-            + theta['score_zmax'] * values[3]
-        )
+            score = (
+                theta['intercept']
+                + theta['score_force_closure'] * values[0]
+                + theta['score_inner_points_ratio'] * values[1]
+                + theta['score_proj_area_ratio'] * values[2]
+                + theta['score_zmax'] * values[3]
+            )
 
-        g['final_score'] = score
+            g['final_score'] = score
 
     return candidate_grippers
 
@@ -396,11 +400,27 @@ def keep_top_k_grippers(candidate_grippers,top_k=10):
 if __name__ == "__main__":
     ply_path = "model/colmap/cat.ply"
     i=257
-    cloud_down,candidate_grippers,candidate_grippers_meshes,vis_list,vis_list1 = grasp_detect(ply_path,i)
-    candidate_grippers = compute_grasp_scores_simple(candidate_grippers, cloud_down, vis=False)
-    final_candidate_grippers = evaluate_grasp_final_score(candidate_grippers)
-    # 3. 保留得分前10的夹爪及mesh
-    top_candidate_grippers, top_candidate_grippers_meshes = keep_top_k_grippers(final_candidate_grippers,top_k=40)
-    vis_list2 = vis_list1 + top_candidate_grippers_meshes
-    # o3d.visualization.draw_geometries(vis_list, window_name=f"Cylinder at dir {i}")
-    o3d.visualization.draw_geometries(vis_list2, window_name=f"Top Gripper Candidates at dir {i}")
+    profiler = ProfileRecorder()
+    with profiler:
+        cloud_down,candidate_grippers,candidate_grippers_meshes,vis_list,vis_list1 = profiler.measure(
+            "pipeline.grasp_detect", grasp_detect, ply_path, i
+        )
+        candidate_grippers = profiler.measure(
+            "pipeline.score", compute_grasp_scores_simple, candidate_grippers, cloud_down, vis=False
+        )
+        final_candidate_grippers = profiler.measure(
+            "pipeline.final_score", evaluate_grasp_final_score, candidate_grippers
+        )
+        # 3. 保留得分前10的夹爪及mesh
+        top_candidate_grippers, top_candidate_grippers_meshes = profiler.measure(
+            "pipeline.top_k", keep_top_k_grippers, final_candidate_grippers, top_k=40
+        )
+        vis_list2 = vis_list1 + top_candidate_grippers_meshes
+        # o3d.visualization.draw_geometries(vis_list, window_name=f"Cylinder at dir {i}")
+        profiler.measure(
+            "pipeline.visualization",
+            o3d.visualization.draw_geometries,
+            vis_list2,
+            window_name=f"Top Gripper Candidates at dir {i}",
+        )
+    profiler.print_report()
