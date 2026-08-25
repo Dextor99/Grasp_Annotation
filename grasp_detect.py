@@ -8,6 +8,7 @@ from cloud_process import frames_process
 from gripper_model import create_gripper_model
 from profiling import active_profiler, profiled
 from depth_sampling import generate_depth_samples
+from depth_profile import DepthProfiler
 
 def generate_cylinder_sections(origin,pcd_points, frame, cyl_radius=75.0, offset=100.0, height=1.0):
     """
@@ -204,7 +205,7 @@ def slide_gripper_along_z(
 
     if depths is None:
         depths = range(0, max_distance + 1, step_mm)
-    for d in depths:
+    for depth_id, d in enumerate(depths):
         for variant in gripper_variants:
             base_pose = variant['T_gripper_object']
             base_model = variant['model']
@@ -229,6 +230,7 @@ def slide_gripper_along_z(
             moved_grippers.append({
                 'id': idx,
                 'base_id': variant['id'],
+                'depth_id': depth_id,
                 'angle_deg': angle_deg,
                 'opening': opening,
                 'depth': d,
@@ -717,6 +719,7 @@ def visualize_gripper_origins_from_object_frame(moved_grippers, T_object_world, 
 def grasp_detect(ply_path,i):
     #下采样的物体点云，AABB包围框中心坐标，物体坐标系，采样点，采样平面坐标系集合，世界坐标系，采样平面，采样平面坐标系物理模型，物体到世界转换矩阵
     profiler = active_profiler()
+    depth_profile = DepthProfiler() if profiler.enabled else None
     cloud_down, obj_center, obj_axes, sample_points, frames, object_world_axis, projections, frame_arrows_list, T_object_world = profiler.measure(
         "detect.frames_process", frames_process, ply_path)
 
@@ -732,6 +735,7 @@ def grasp_detect(ply_path,i):
     depths = generate_depth_samples(object_radius, num_depth=16, max_ratio=1.2)
     profiler.count("depth.object_radius_mm", round(object_radius, 4))
     profiler.count("depth.max_sample_mm", round(float(depths[-1]), 4))
+    profiler.count("depth.sample_count", len(depths))
     origin = frame['origin']
     # origin = frame['origin'] + frame['x_axis']*75 - frame['y_axis']*10
     cyl0, cyl1, center0, center1 = profiler.measure(
@@ -900,6 +904,26 @@ def grasp_detect(ply_path,i):
     candidate_grippers_meshes = []
     for k in filtered:
         candidate_grippers_meshes.extend(k['meshes'])
+
+    if depth_profile is not None:
+        collision_ids = {candidate['id'] for candidate in non_colliding_grippers}
+        opening_ids = {candidate['id'] for candidate in min_opening_grippers}
+        final_by_id = {candidate['id']: candidate for candidate in filtered}
+        for candidate in moved_gripper_variants:
+            candidate_id = candidate['id']
+            final_candidate = final_by_id.get(candidate_id)
+            contact_points = len(final_candidate.get('inner_points_local', ())) if final_candidate else 0
+            depth_profile.add(
+                variant_id=candidate['base_id'],
+                depth_id=candidate['depth_id'],
+                depth_value=candidate['depth'],
+                collision_free=candidate_id in collision_ids,
+                opening_valid=candidate_id in opening_ids,
+                intersection_valid=final_candidate is not None,
+                contact_points=contact_points,
+            )
+        import os
+        depth_profile.save(os.getenv("GRASP_DEPTH_PROFILE_PATH", "depth_profile.csv"))
 
 #########################可视化过程中夹爪原点
     origin_spheres = visualize_gripper_origins_from_object_frame(moved_gripper_variants, T_object_world, radius=2.0)
