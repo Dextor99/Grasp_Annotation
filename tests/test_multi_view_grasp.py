@@ -88,7 +88,7 @@ class MultiViewGraspTests(unittest.TestCase):
 
         self.assertEqual(result.grasps[0]["score_total"], float("-inf"))
 
-    def test_loader_reestimates_zero_normals_into_usable_oriented_normals(self):
+    def test_loader_reestimates_zero_normals_into_usable_normals(self):
         cloud = multi_view_grasp.o3d.geometry.PointCloud()
         cloud.points = multi_view_grasp.o3d.utility.Vector3dVector([
             [0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0],
@@ -102,6 +102,21 @@ class MultiViewGraspTests(unittest.TestCase):
         self.assertEqual(normals.shape, (4, 3))
         self.assertTrue(np.all(np.isfinite(normals)))
         self.assertTrue(np.all(np.linalg.norm(normals, axis=1) > 0.0))
+
+    def test_loader_rejects_sparse_clouds_when_normal_recovery_is_needed(self):
+        for point_count in (1, 3):
+            with self.subTest(point_count=point_count):
+                cloud = multi_view_grasp.o3d.geometry.PointCloud()
+                cloud.points = multi_view_grasp.o3d.utility.Vector3dVector(
+                    np.arange(point_count * 3, dtype=float).reshape(point_count, 3)
+                )
+                cloud.normals = multi_view_grasp.o3d.utility.Vector3dVector(
+                    np.zeros((point_count, 3))
+                )
+
+                with patch.object(multi_view_grasp.o3d.io, "read_point_cloud", return_value=cloud):
+                    with self.assertRaisesRegex(ValueError, "at least 4 points"):
+                        _load_cloud("sparse.ply")
 
     def test_scorer_mutation_does_not_change_detector_owned_candidate(self):
         candidate = {

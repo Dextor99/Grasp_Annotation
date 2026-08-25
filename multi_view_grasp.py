@@ -42,6 +42,10 @@ def _load_cloud(path):
         or not np.all(np.isfinite(normal_lengths))
         or np.any(normal_lengths <= 0.0)
     ):
+        if len(points) < 4:
+            raise ValueError(
+                "PLY must contain at least 4 points to estimate and orient normals"
+            )
         cloud.estimate_normals(
             search_param=o3d.geometry.KDTreeSearchParamKNN(knn=min(30, len(points)))
         )
