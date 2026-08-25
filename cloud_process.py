@@ -5,6 +5,7 @@ import numpy as np
 import copy
 from sklearn.neighbors import KDTree
 from profiling import active_profiler, profiled
+from model_scale import get_model_scale
 
 
 def estimate_normals(pcd, radius=0.05, max_nn=30):
@@ -136,8 +137,11 @@ def frames_process(ply_path,
     profiler = active_profiler()
     pcd = profiler.measure("cloud.load_point_cloud", o3d.io.read_point_cloud, ply_path)
     ##单位转换
-    pcd.points = o3d.utility.Vector3dVector(np.asarray(pcd.points) * 1000)  # m -> mm
+    input_scale = get_model_scale(ply_path)
+    points = np.asarray(pcd.points) * input_scale
+    pcd.points = o3d.utility.Vector3dVector(points)
     print(f"Loaded: {ply_path}, pts = {len(pcd.points)}")
+    print(f"Input scale: {input_scale:g}; scaled extent: {np.ptp(points, axis=0)}")
 
     # 2. 自动体素下采样
     bounds = pcd.get_max_bound() - pcd.get_min_bound()

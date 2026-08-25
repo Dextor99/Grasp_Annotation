@@ -719,6 +719,8 @@ def visualize_gripper_origins_from_object_frame(moved_grippers, T_object_world, 
 def grasp_detect(ply_path,i):
     #下采样的物体点云，AABB包围框中心坐标，物体坐标系，采样点，采样平面坐标系集合，世界坐标系，采样平面，采样平面坐标系物理模型，物体到世界转换矩阵
     profiler = active_profiler()
+    vis_list = []
+    vis_list1 = []
     depth_profile = DepthProfiler() if profiler.enabled else None
     profiler.attach_depth_profile(depth_profile)
     cloud_down, obj_center, obj_axes, sample_points, frames, object_world_axis, projections, frame_arrows_list, T_object_world = profiler.measure(
