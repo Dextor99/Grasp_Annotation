@@ -30,6 +30,20 @@ class FilterFrontFacingSurfaceTests(unittest.TestCase):
                 np.zeros((1, 3)), np.array([[0.0, 0.0, 1.0]]), [0.0, 0.0, 0.0]
             )
 
+    def test_retains_aligned_extreme_magnitude_vectors(self):
+        points = np.array([[0.0, 0.0, 0.0]])
+        for magnitude in (1e308, 1e-308):
+            with self.subTest(magnitude=magnitude):
+                visible_points, visible_normals, mask = filter_front_facing_surface(
+                    points,
+                    np.array([[magnitude, 0.0, 0.0]]),
+                    [magnitude, 0.0, 0.0],
+                )
+
+                np.testing.assert_array_equal(mask, [True])
+                np.testing.assert_array_equal(visible_points, points)
+                np.testing.assert_allclose(visible_normals, [[1.0, 0.0, 0.0]])
+
 
 if __name__ == "__main__":
     unittest.main()

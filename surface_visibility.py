@@ -12,6 +12,17 @@ def _as_finite_vectors(values, name):
     return vectors
 
 
+def _normalize_vectors(vectors):
+    """Normalize rows without overflowing or underflowing their lengths."""
+    scales = np.max(np.abs(vectors), axis=1)
+    nonzero = scales > 0.0
+    normalized = np.zeros_like(vectors)
+    scaled_vectors = vectors[nonzero] / scales[nonzero, np.newaxis]
+    scaled_lengths = np.linalg.norm(scaled_vectors, axis=1)
+    normalized[nonzero] = scaled_vectors / scaled_lengths[:, np.newaxis]
+    return normalized, nonzero
+
+
 def filter_front_facing_surface(points, normals, view_direction, min_dot=1e-8):
     """Filter surface samples whose normals face a virtual camera.
 
@@ -29,20 +40,18 @@ def filter_front_facing_surface(points, normals, view_direction, min_dot=1e-8):
     view_direction = np.asarray(view_direction, dtype=float)
     if view_direction.shape != (3,) or not np.all(np.isfinite(view_direction)):
         raise ValueError("view_direction must be a finite vector with shape (3,)")
-    view_length = np.linalg.norm(view_direction)
-    if view_length == 0.0:
+    unit_view_direction, nonzero_view_direction = _normalize_vectors(
+        view_direction[np.newaxis, :]
+    )
+    if not nonzero_view_direction[0]:
         raise ValueError("view_direction must be non-zero")
 
     if not np.isscalar(min_dot) or not np.isfinite(min_dot):
         raise ValueError("min_dot must be a finite scalar")
 
-    lengths = np.linalg.norm(normals, axis=1)
-    nonzero_normals = lengths > 0.0
-    normalized_normals = np.zeros_like(normals)
-    normalized_normals[nonzero_normals] = (
-        normals[nonzero_normals] / lengths[nonzero_normals, np.newaxis]
+    normalized_normals, nonzero_normals = _normalize_vectors(normals)
+    mask = nonzero_normals & (
+        normalized_normals @ unit_view_direction[0] > min_dot
     )
-    unit_view_direction = view_direction / view_length
-    mask = nonzero_normals & (normalized_normals @ unit_view_direction > min_dot)
 
     return points[mask], normalized_normals[mask], mask
