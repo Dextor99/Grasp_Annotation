@@ -7,6 +7,7 @@ from scipy.spatial import cKDTree
 from cloud_process import frames_process
 from gripper_model import create_gripper_model
 from profiling import active_profiler, profiled
+from depth_sampling import generate_depth_samples
 
 def generate_cylinder_sections(origin,pcd_points, frame, cyl_radius=75.0, offset=100.0, height=1.0):
     """
@@ -195,12 +196,15 @@ def slide_gripper_along_z(
     gripper_variants,
     T_object_world,
     step_mm=4,
-    max_distance=100
+    max_distance=100,
+    depths=None,
 ):
     moved_grippers = []
     idx = 0
 
-    for d in range(0, max_distance + 1, step_mm):
+    if depths is None:
+        depths = range(0, max_distance + 1, step_mm)
+    for d in depths:
         for variant in gripper_variants:
             base_pose = variant['T_gripper_object']
             base_model = variant['model']
@@ -719,6 +723,15 @@ def grasp_detect(ply_path,i):
     frame = frames[i - 1]
     # 获取点云坐标（从 pcd 或 downsampled 点云）
     pts = np.asarray(cloud_down.points)  # 或 frames_process 中直接返回
+    # frames_process samples on (object_radius + 100 mm); derive the same
+    # object-radius convention instead of using the smaller point-cloud max norm.
+    sample_radius = float(np.linalg.norm(sample_points[0] - obj_center))
+    object_radius = sample_radius - 100.0
+    if object_radius <= 0 or not np.isfinite(object_radius):
+        object_radius = float(np.max(np.linalg.norm(pts - obj_center, axis=1)))
+    depths = generate_depth_samples(object_radius, num_depth=16, max_ratio=1.2)
+    profiler.count("depth.object_radius_mm", round(object_radius, 4))
+    profiler.count("depth.max_sample_mm", round(float(depths[-1]), 4))
     origin = frame['origin']
     # origin = frame['origin'] + frame['x_axis']*75 - frame['y_axis']*10
     cyl0, cyl1, center0, center1 = profiler.measure(
@@ -798,6 +811,7 @@ def grasp_detect(ply_path,i):
         T_object_world=T_object_world,
         step_mm=10,
         max_distance=150,
+        depths=depths,
     )
     profiler.count("candidates.before_collision", len(moved_gripper_variants))
     def record_candidate_funnel(candidates, phase):
