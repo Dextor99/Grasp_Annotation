@@ -1,0 +1,131 @@
+import json
+import tempfile
+import unittest
+from pathlib import Path
+from unittest.mock import patch
+
+import numpy as np
+
+from grasp_database import save_grasp_dataset
+import main
+
+
+class GraspDatabaseTests(unittest.TestCase):
+    def test_nonempty_dataset_has_json_npz_and_metadata_schemas(self):
+        pose = np.eye(4)
+        pose[:3, 3] = [1.0, 2.0, 3.0]
+        grasp = {
+            "T_gripper_object": pose,
+            "opening": np.float64(50.0),
+            "score_total": np.float32(0.7),
+            "score_force_closure": np.float64(0.4),
+            "score_label": 2,
+            "score_bad": np.nan,
+            "view_id": np.int64(1),
+            "view_direction": np.array([0.0, 0.0, 4.0]),
+            "source": "synthetic",
+            "nested": {"sample": np.int64(3)},
+            "not_serializable": object(),
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            result = save_grasp_dataset([grasp], directory, {"object": "demo", "units": "mm"})
+            self.assertTrue(result.json_path.exists())
+            self.assertTrue(result.npz_path.exists())
+            self.assertTrue(result.meta_path.exists())
+
+            records = json.loads(result.json_path.read_text(encoding="utf-8"))
+            self.assertEqual(len(records), 1)
+            record = records[0]
+            self.assertEqual(record["id"], "grasp-000000")
+            self.assertEqual(record["translation"], [1.0, 2.0, 3.0])
+            self.assertEqual(record["rotation"], np.eye(3).reshape(-1).tolist())
+            self.assertEqual(record["quaternion_xyzw"], [0.0, 0.0, 0.0, 1.0])
+            self.assertEqual(record["opening"], 50.0)
+            self.assertAlmostEqual(record["score_total"], 0.7)
+            self.assertEqual(record["score_force_closure"], 0.4)
+            self.assertEqual(record["score_label"], 2)
+            self.assertNotIn("score_bad", record)
+            self.assertEqual(record["view_id"], 1)
+            self.assertEqual(record["view_direction"], [0.0, 0.0, 1.0])
+            self.assertEqual(record["source"], "synthetic")
+            self.assertEqual(record["nested"], {"sample": 3})
+            self.assertNotIn("not_serializable", record)
+
+            with np.load(result.npz_path) as dataset:
+                self.assertEqual(dataset["poses"].shape, (1, 4, 4))
+                self.assertEqual(dataset["translations"].shape, (1, 3))
+                self.assertEqual(dataset["rotations"].shape, (1, 3, 3))
+                self.assertEqual(dataset["quaternions"].shape, (1, 4))
+                self.assertEqual(dataset["openings"].shape, (1,))
+                self.assertEqual(dataset["scores"].shape, (1,))
+                self.assertEqual(dataset["view_ids"].shape, (1,))
+                self.assertTrue(np.issubdtype(dataset["poses"].dtype, np.floating))
+                np.testing.assert_allclose(dataset["translations"], [[1.0, 2.0, 3.0]])
+
+            metadata = json.loads(result.meta_path.read_text(encoding="utf-8"))
+            self.assertEqual(metadata["object"], "demo")
+            self.assertEqual(metadata["units"], "mm")
+            self.assertEqual(metadata["visibility_strategy"], "normal_based_front_facing")
+
+    def test_empty_dataset_uses_fixed_npz_shapes_and_default_metadata(self):
+        with tempfile.TemporaryDirectory() as directory:
+            result = save_grasp_dataset([], Path(directory) / "new-output", {})
+            self.assertEqual(json.loads(result.json_path.read_text(encoding="utf-8")), [])
+            with np.load(result.npz_path) as dataset:
+                self.assertEqual(dataset["poses"].shape, (0, 4, 4))
+                self.assertEqual(dataset["translations"].shape, (0, 3))
+                self.assertEqual(dataset["rotations"].shape, (0, 3, 3))
+                self.assertEqual(dataset["quaternions"].shape, (0, 4))
+                self.assertEqual(dataset["openings"].shape, (0,))
+                self.assertEqual(dataset["scores"].shape, (0,))
+                self.assertEqual(dataset["view_ids"].shape, (0,))
+            metadata = json.loads(result.meta_path.read_text(encoding="utf-8"))
+            self.assertEqual(metadata["units"], "mm")
+            self.assertEqual(metadata["visibility_strategy"], "normal_based_front_facing")
+
+    def test_invalid_or_nonfinite_poses_are_dropped(self):
+        invalid_shape = {"T_gripper_object": np.eye(3)}
+        invalid_nan = {"T_gripper_object": np.full((4, 4), np.nan)}
+        invalid_rotation = {"T_gripper_object": np.diag([2.0, 1.0, 1.0, 1.0])}
+        valid = {"T_gripper_object": np.eye(4), "score_total": 1.0}
+        with tempfile.TemporaryDirectory() as directory:
+            result = save_grasp_dataset([invalid_shape, invalid_nan, invalid_rotation, valid], directory, {})
+            self.assertEqual(len(json.loads(result.json_path.read_text(encoding="utf-8"))), 1)
+            with np.load(result.npz_path) as dataset:
+                self.assertEqual(dataset["poses"].shape, (1, 4, 4))
+
+
+class MainTests(unittest.TestCase):
+    def test_parser_rejects_nonpositive_view_count_and_accepts_experimental_count(self):
+        parser = main.build_parser()
+        with self.assertRaises(SystemExit):
+            parser.parse_args(["--object", "a.ply", "--output", "out", "--views", "0"])
+        self.assertEqual(parser.parse_args(["--object", "a.ply", "--output", "out", "--views", "37"]).views, 37)
+
+    def test_pipeline_saves_and_reports_summary(self):
+        result = type("Result", (), {
+            "grasps": [{"T_gripper_object": np.eye(4), "score_total": 0.8}],
+            "skipped_views": [{"view_id": 1, "reason": "no_candidates"}],
+            "view_candidate_counts": {0: 2, 1: 0},
+        })()
+        paths = type("Paths", (), {
+            "json_path": Path("out/grasps.json"),
+            "npz_path": Path("out/grasps.npz"),
+            "meta_path": Path("out/meta.json"),
+        })()
+        with patch.object(main, "generate_multi_view_grasps", return_value=result) as generate, patch.object(main, "save_grasp_dataset", return_value=paths) as save, patch("builtins.print") as printed:
+            exit_code = main.run(["--object", "object.ply", "--views", "20", "--output", "out"])
+        self.assertEqual(exit_code, 0)
+        generate.assert_called_once_with("object.ply", 20, 5.0, 10.0)
+        save.assert_called_once()
+        output = "\n".join(str(call.args[0]) for call in printed.call_args_list)
+        self.assertIn("processed views: 2", output)
+        self.assertIn("skipped views: 1", output)
+        self.assertIn("raw grasps: 2", output)
+        self.assertIn("deduplicated grasps: 1", output)
+        self.assertIn("per-view candidate counts: {0: 2, 1: 0}", output)
+        self.assertIn("grasps.json", output)
+
+
+if __name__ == "__main__":
+    unittest.main()
