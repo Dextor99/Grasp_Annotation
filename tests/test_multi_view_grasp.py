@@ -1,0 +1,205 @@
+import unittest
+from unittest.mock import patch
+
+import numpy as np
+
+import multi_view_grasp
+from multi_view_grasp import _load_cloud, generate_multi_view_grasps
+
+
+class MultiViewGraspTests(unittest.TestCase):
+    def test_calls_detector_once_per_requested_view_and_attaches_provenance(self):
+        calls = []
+
+        def detector(points, normals, view, metadata):
+            calls.append((points.copy(), normals.copy(), view.copy(), metadata.copy()))
+            return [{"T_gripper_object": np.eye(4), "opening": 50.0}]
+
+        with patch("multi_view_grasp.filter_front_facing_surface", side_effect=lambda points, normals, view: (points, normals, np.ones(len(points), dtype=bool))):
+            result = generate_multi_view_grasps(
+                "ignored", 3,
+                loader=lambda _: (np.zeros((3, 3)), np.tile([0.0, 0.0, 1.0], (3, 1))),
+                detector=detector,
+                scorer=lambda grasps, _: grasps,
+                deduplicate=False,
+            )
+
+        self.assertEqual([call[3]["view_id"] for call in calls], [0, 1, 2])
+        self.assertEqual(result.view_candidate_counts, {0: 1, 1: 1, 2: 1})
+        self.assertEqual([grasp["view_id"] for grasp in result.grasps], [0, 1, 2])
+        for grasp, call in zip(result.grasps, calls):
+            np.testing.assert_allclose(grasp["view_direction"], call[2])
+            self.assertAlmostEqual(np.linalg.norm(grasp["view_direction"]), 1.0)
+
+    def test_records_empty_and_candidate_free_views_as_skipped(self):
+        points = np.array([[0.0, 0.0, 0.0]])
+        normals = np.array([[0.0, 0.0, 1.0]])
+        visible = [
+            (np.empty((0, 3)), np.empty((0, 3)), np.array([False])),
+            (points, normals, np.array([True])),
+        ]
+
+        with patch("multi_view_grasp.filter_front_facing_surface", side_effect=visible) as filter_surface:
+            result = generate_multi_view_grasps(
+                "ignored", 2,
+                loader=lambda _: (points, normals),
+                detector=lambda *_: [],
+                scorer=lambda grasps, _: grasps,
+            )
+
+        self.assertEqual(filter_surface.call_count, 2)
+        self.assertEqual(result.grasps, [])
+        self.assertEqual(result.view_candidate_counts, {0: 0, 1: 0})
+        self.assertEqual(result.skipped_views, [
+            {"view_id": 0, "reason": "no_front_facing_points"},
+            {"view_id": 1, "reason": "no_candidates"},
+        ])
+
+    def test_score_preference_and_deduplication_happen_after_all_views(self):
+        lower = {"T_gripper_object": np.eye(4), "opening": 20.0, "score_inner_points_ratio": 0.7}
+        higher = {"T_gripper_object": np.eye(4), "opening": 30.0, "score_force_closure": 0.9}
+        batches = [[lower], [higher]]
+
+        def detector(*_):
+            return batches.pop(0)
+
+        with patch("multi_view_grasp.filter_front_facing_surface", side_effect=lambda points, normals, view: (points, normals, np.ones(len(points), dtype=bool))):
+            result = generate_multi_view_grasps(
+                "ignored", 2,
+                loader=lambda _: (np.zeros((1, 3)), np.array([[0.0, 0.0, 1.0]])),
+                detector=detector,
+                scorer=lambda grasps, _: grasps,
+            )
+
+        self.assertEqual(len(result.grasps), 1)
+        self.assertEqual(result.grasps[0]["opening"], 30.0)
+        self.assertEqual(result.grasps[0]["score_total"], 0.9)
+
+    def test_score_total_uses_negative_infinity_without_finite_scores(self):
+        candidate = {"T_gripper_object": np.eye(4), "score_force_closure": np.nan, "score_inner_points_ratio": None}
+        with patch("multi_view_grasp.filter_front_facing_surface", return_value=(np.zeros((1, 3)), np.array([[0.0, 0.0, 1.0]]), np.array([True]))):
+            result = generate_multi_view_grasps(
+                "ignored", 1,
+                loader=lambda _: (np.zeros((1, 3)), np.array([[0.0, 0.0, 1.0]])),
+                detector=lambda *_: [candidate],
+                scorer=lambda grasps, _: grasps,
+                deduplicate=False,
+            )
+
+        self.assertEqual(result.grasps[0]["score_total"], float("-inf"))
+
+    def test_loader_reestimates_zero_normals_into_usable_normals(self):
+        cloud = multi_view_grasp.o3d.geometry.PointCloud()
+        cloud.points = multi_view_grasp.o3d.utility.Vector3dVector([
+            [0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0],
+        ])
+        cloud.normals = multi_view_grasp.o3d.utility.Vector3dVector(np.zeros((4, 3)))
+
+        with patch.object(multi_view_grasp.o3d.io, "read_point_cloud", return_value=cloud) as read:
+            _, normals = _load_cloud("synthetic.ply")
+
+        read.assert_called_once_with("synthetic.ply")
+        self.assertEqual(normals.shape, (4, 3))
+        self.assertTrue(np.all(np.isfinite(normals)))
+        self.assertTrue(np.all(np.linalg.norm(normals, axis=1) > 0.0))
+
+    def test_loader_rejects_sparse_clouds_when_normal_recovery_is_needed(self):
+        for point_count in (1, 3):
+            with self.subTest(point_count=point_count):
+                cloud = multi_view_grasp.o3d.geometry.PointCloud()
+                cloud.points = multi_view_grasp.o3d.utility.Vector3dVector(
+                    np.arange(point_count * 3, dtype=float).reshape(point_count, 3)
+                )
+                cloud.normals = multi_view_grasp.o3d.utility.Vector3dVector(
+                    np.zeros((point_count, 3))
+                )
+
+                with patch.object(multi_view_grasp.o3d.io, "read_point_cloud", return_value=cloud):
+                    with self.assertRaisesRegex(ValueError, "at least 4 points"):
+                        _load_cloud("sparse.ply")
+
+    def test_scorer_mutation_does_not_change_detector_owned_candidate(self):
+        candidate = {
+            "T_gripper_object": np.eye(4),
+            "nested": {"values": np.array([1.0, 2.0])},
+        }
+
+        def scorer(grasps, _):
+            grasps[0]["nested"]["values"][0] = 99.0
+            grasps[0]["scored"] = True
+            return grasps
+
+        with patch("multi_view_grasp.filter_front_facing_surface", return_value=(np.zeros((1, 3)), np.array([[0.0, 0.0, 1.0]]), np.array([True]))):
+            result = generate_multi_view_grasps(
+                "ignored", 1,
+                loader=lambda _: (np.zeros((1, 3)), np.array([[0.0, 0.0, 1.0]])),
+                detector=lambda *_: [candidate],
+                scorer=scorer,
+                deduplicate=False,
+            )
+
+        np.testing.assert_array_equal(candidate["nested"]["values"], [1.0, 2.0])
+        self.assertNotIn("scored", candidate)
+        np.testing.assert_array_equal(result.grasps[0]["nested"]["values"], [99.0, 2.0])
+        self.assertTrue(result.grasps[0]["scored"])
+
+    def test_scorer_returning_no_candidates_marks_view_skipped(self):
+        with patch("multi_view_grasp.filter_front_facing_surface", return_value=(np.zeros((1, 3)), np.array([[0.0, 0.0, 1.0]]), np.array([True]))):
+            result = generate_multi_view_grasps(
+                "ignored", 1,
+                loader=lambda _: (np.zeros((1, 3)), np.array([[0.0, 0.0, 1.0]])),
+                detector=lambda *_: [{"T_gripper_object": np.eye(4)}],
+                scorer=lambda *_: [],
+            )
+
+        self.assertEqual(result.grasps, [])
+        self.assertEqual(result.view_candidate_counts, {0: 1})
+        self.assertEqual(result.skipped_views, [{"view_id": 0, "reason": "no_candidates"}])
+
+    def test_detector_error_skips_only_its_view(self):
+        def detector(_, __, ___, metadata):
+            if metadata["view_id"] == 1:
+                raise RuntimeError("detector unavailable")
+            return [{"T_gripper_object": np.eye(4)}]
+
+        with patch("multi_view_grasp.filter_front_facing_surface", side_effect=lambda points, normals, view: (points, normals, np.ones(len(points), dtype=bool))):
+            result = generate_multi_view_grasps(
+                "ignored", 3,
+                loader=lambda _: (np.zeros((1, 3)), np.array([[0.0, 0.0, 1.0]])),
+                detector=detector,
+                scorer=lambda grasps, _: grasps,
+                deduplicate=False,
+            )
+
+        self.assertEqual([grasp["view_id"] for grasp in result.grasps], [0, 2])
+        self.assertEqual(result.view_candidate_counts[1], 0)
+        skipped = next(item for item in result.skipped_views if item["view_id"] == 1)
+        self.assertEqual(skipped["reason"], "processing_error")
+        self.assertEqual(skipped["error_type"], "RuntimeError")
+        self.assertEqual(skipped["error_message"], "detector unavailable")
+
+    def test_scorer_error_skips_only_its_view(self):
+        def scorer(grasps, _):
+            if grasps[0]["view_id"] == 1:
+                raise ValueError("scorer unavailable")
+            return grasps
+
+        with patch("multi_view_grasp.filter_front_facing_surface", side_effect=lambda points, normals, view: (points, normals, np.ones(len(points), dtype=bool))):
+            result = generate_multi_view_grasps(
+                "ignored", 3,
+                loader=lambda _: (np.zeros((1, 3)), np.array([[0.0, 0.0, 1.0]])),
+                detector=lambda *args: [{"T_gripper_object": np.eye(4), "view_id": args[-1]["view_id"]}],
+                scorer=scorer,
+                deduplicate=False,
+            )
+
+        self.assertEqual([grasp["view_id"] for grasp in result.grasps], [0, 2])
+        self.assertEqual(result.view_candidate_counts[1], 0)
+        skipped = next(item for item in result.skipped_views if item["view_id"] == 1)
+        self.assertEqual(skipped["reason"], "processing_error")
+        self.assertEqual(skipped["error_type"], "ValueError")
+        self.assertEqual(skipped["error_message"], "scorer unavailable")
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -6,6 +6,107 @@ import copy
 from cloud_process import frames_process
 from gripper_model import create_gripper_model
 
+
+def _as_finite_array(value, name, shape):
+    array = np.asarray(value, dtype=float)
+    if array.ndim != len(shape) or any(actual != expected for actual, expected in zip(array.shape, shape)):
+        raise ValueError(f"{name} must have shape {shape}")
+    if not np.all(np.isfinite(array)):
+        raise ValueError(f"{name} must contain only finite values")
+    return array
+
+
+def grasp_detect_from_surface(surface_points, surface_normals, view_direction, metadata=None):
+    """Generate grasp candidates for one visible object surface."""
+    points = np.asarray(surface_points, dtype=float)
+    normals = np.asarray(surface_normals, dtype=float)
+    if points.ndim != 2 or points.shape[1:] != (3,):
+        raise ValueError("surface_points must have shape (N, 3)")
+    if normals.shape != points.shape:
+        raise ValueError("surface_normals must have the same shape as surface_points")
+    if not np.all(np.isfinite(points)) or not np.all(np.isfinite(normals)):
+        raise ValueError("surface points and normals must contain only finite values")
+
+    view = _as_finite_array(view_direction, "view_direction", (3,))
+    view_scale = np.max(np.abs(view))
+    if view_scale == 0:
+        raise ValueError("view_direction must be nonzero")
+    view = view / view_scale
+    view = view / np.linalg.norm(view)
+
+    if len(points) == 0:
+        return []
+
+    point_cloud = o3d.geometry.PointCloud()
+    point_cloud.points = o3d.utility.Vector3dVector(points)
+    point_cloud.normals = o3d.utility.Vector3dVector(normals)
+    candidates = _generate_surface_candidates(point_cloud, _make_view_frame(points, view))
+
+    metadata_copy = copy.deepcopy({} if metadata is None else dict(metadata))
+    results = []
+    for candidate in candidates:
+        pose = np.asarray(candidate.get("T_gripper_object"), dtype=float)
+        if pose.shape != (4, 4) or not np.all(np.isfinite(pose)):
+            continue
+        result = copy.deepcopy(candidate)
+        result.update(copy.deepcopy(metadata_copy))
+        result["T_gripper_object"] = pose.copy()
+        result["view_direction"] = view.copy()
+        results.append(result)
+    return results
+
+
+def _make_view_frame(surface_points, view_direction):
+    """Build a right-handed gripper frame whose z axis approaches the object from camera."""
+    z_axis = -np.asarray(view_direction, dtype=float)
+    reference = np.eye(3)[np.argmin(np.abs(z_axis))]
+    x_axis = np.cross(reference, z_axis)
+    x_axis /= np.linalg.norm(x_axis)
+    y_axis = np.cross(z_axis, x_axis)
+    return {
+        "origin": np.mean(surface_points, axis=0),
+        "x_axis": x_axis,
+        "y_axis": y_axis,
+        "z_axis": z_axis,
+    }
+
+
+def _generate_surface_candidates(point_cloud, frame):
+    """Run the existing candidate, collision, and inner-OBB filters for one frame."""
+    points = np.asarray(point_cloud.points)
+    cyl0, _, center0, _ = generate_cylinder_sections(
+        frame["origin"], points, frame, cyl_radius=75.0, offset=40.0, height=1.0
+    )
+    if center0 is None or not np.all(np.isfinite(center0)):
+        return []
+
+    object_to_world = np.eye(4)
+    custom_gripper = create_gripper_model(
+        finger_length=100, opening=0, finger_color=[0.2, 0.5, 0.8]
+    )
+    _, _, gripper_pose, _, _ = transform_gripper_to_frame(
+        custom_gripper["meshes"], frame, center0, object_to_world
+    )
+    if gripper_pose is None or not np.all(np.isfinite(gripper_pose)):
+        return []
+
+    variants = generate_gripper_variants(
+        custom_gripper["model"], object_to_world, gripper_pose,
+        step_deg=15, max_deg=179, step_open=15, max_open=150,
+    )
+    moved_variants = slide_gripper_along_z(
+        variants, object_to_world, step_mm=10, max_distance=150
+    )
+    non_colliding = filter_collision_free_grippers(moved_variants, point_cloud, threshold=3.0)
+    minimum_opening = filter_by_min_opening_per_depth_angle(non_colliding)
+    normals = np.asarray(point_cloud.normals)
+    if normals.shape != points.shape or not np.all(np.isfinite(normals)):
+        return []
+    return filter_grippers_with_pointcloud_intersection(
+        minimum_opening, object_to_world, point_cloud,
+        min_points_threshold=5, normals_world_all=normals,
+    )
+
 def generate_cylinder_sections(origin,pcd_points, frame, cyl_radius=75.0, offset=100.0, height=1.0):
     """
     在指定 frame 上生成两个圆柱面截面（一个接触面，一个延申面）
@@ -249,18 +350,30 @@ def check_collision(gripper_meshes, point_cloud, threshold=2.0):
         bool: True表示有碰撞，False表示无碰撞
     """
     # 合并夹爪所有网格
+    if len(gripper_meshes) < 3:
+        return True
     combined_mesh = gripper_meshes[0] + gripper_meshes[1] + gripper_meshes[2]
 
     # 创建夹爪的KD树
-    gripper_pcd = combined_mesh.sample_points_uniformly(number_of_points=1000)
+    try:
+        gripper_pcd = combined_mesh.sample_points_uniformly(number_of_points=1000)
+    except RuntimeError:
+        return True
+    gripper_points = np.asarray(gripper_pcd.points)
+    if len(gripper_points) == 0 or not np.all(np.isfinite(gripper_points)):
+        return True
     gripper_tree = o3d.geometry.KDTreeFlann(gripper_pcd)
 
     # 检查点云中的每个点
     points = np.asarray(point_cloud.points)
+    if not np.all(np.isfinite(points)):
+        return True
     for pt in points:
         # 查找夹爪中最近的点
         [k, idx, _] = gripper_tree.search_knn_vector_3d(pt, 1)
-        nearest_pt = np.asarray(gripper_pcd.points)[idx[0]]
+        if k == 0 or not idx:
+            return True
+        nearest_pt = gripper_points[idx[0]]
         distance = np.linalg.norm(pt - nearest_pt)
 
         if distance < threshold:
@@ -674,6 +787,9 @@ def grasp_detect(ply_path,i):
 
 ##########################创建了中间开口为0 的夹爪
     # 创建自定义夹爪
+    if center0 is None or not np.all(np.isfinite(center0)):
+        return cloud_down, [], [], [], []
+
     custom_gripper = create_gripper_model(
         finger_length=100,
         opening=0,
