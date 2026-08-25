@@ -48,12 +48,10 @@ def grasp_detect_from_surface(surface_points, surface_normals, view_direction, m
         pose = np.asarray(candidate.get("T_gripper_object"), dtype=float)
         if pose.shape != (4, 4) or not np.all(np.isfinite(pose)):
             continue
-        result = metadata_copy.copy()
-        result.update({
-            "T_gripper_object": pose.copy(),
-            "opening": candidate["opening"],
-            "view_direction": view.copy(),
-        })
+        result = copy.deepcopy(candidate)
+        result.update(copy.deepcopy(metadata_copy))
+        result["T_gripper_object"] = pose.copy()
+        result["view_direction"] = view.copy()
         results.append(result)
     return results
 

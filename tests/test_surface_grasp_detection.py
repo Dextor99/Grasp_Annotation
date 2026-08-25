@@ -5,6 +5,7 @@ from unittest.mock import patch
 import numpy as np
 
 import grasp_detect
+from grasp_score_V3 import compute_grasp_scores_simple
 
 
 class SurfaceGraspDetectionTests(unittest.TestCase):
@@ -59,6 +60,36 @@ class SurfaceGraspDetectionTests(unittest.TestCase):
         np.testing.assert_allclose(result[0]["view_direction"], [0.0, 0.0, 1.0])
         self.assertEqual(result[0]["object_id"], "mug-7")
         self.assertEqual(metadata, {"object_id": "mug-7"})
+
+    def test_adapter_preserves_scorer_geometry_and_dimensions(self):
+        candidate = {
+            "T_gripper_object": np.eye(4),
+            "opening": 45.0,
+            "width": 15.0,
+            "length": 100.0,
+            "inner_points_local": np.array([
+                [0.0, -5.0, -10.0], [1.0, 5.0, -20.0], [2.0, 0.0, -30.0],
+            ]),
+            "inner_normals_local": np.array([
+                [0.0, 2.0, 0.0], [0.0, -2.0, 0.0], [0.0, 2.0, 0.0],
+            ]),
+        }
+        with patch.object(grasp_detect, "_generate_surface_candidates", return_value=[candidate]):
+            adapted = grasp_detect.grasp_detect_from_surface(
+                [[0.0, 0.0, 0.0]], [[0.0, 0.0, 1.0]], [0.0, 0.0, 1.0], {"view_id": 4}
+            )
+
+        cloud = grasp_detect.o3d.geometry.PointCloud()
+        cloud.points = grasp_detect.o3d.utility.Vector3dVector(np.zeros((3, 3)))
+        scored = compute_grasp_scores_simple(adapted, cloud)
+
+        self.assertEqual(scored[0]["width"], 15.0)
+        self.assertEqual(scored[0]["length"], 100.0)
+        self.assertIn("inner_points_local", scored[0])
+        self.assertIn("inner_normals_local", scored[0])
+        self.assertGreater(scored[0]["score_inner_points_ratio"], 0.0)
+        self.assertNotEqual(id(scored[0]["inner_points_local"]), id(candidate["inner_points_local"]))
+        np.testing.assert_array_equal(candidate["inner_normals_local"][0], [0.0, 2.0, 0.0])
 
     def test_camera_view_uses_opposite_gripper_axis_and_front_contact(self):
         points = np.array([

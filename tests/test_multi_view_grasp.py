@@ -156,6 +156,50 @@ class MultiViewGraspTests(unittest.TestCase):
         self.assertEqual(result.view_candidate_counts, {0: 1})
         self.assertEqual(result.skipped_views, [{"view_id": 0, "reason": "no_candidates"}])
 
+    def test_detector_error_skips_only_its_view(self):
+        def detector(_, __, ___, metadata):
+            if metadata["view_id"] == 1:
+                raise RuntimeError("detector unavailable")
+            return [{"T_gripper_object": np.eye(4)}]
+
+        with patch("multi_view_grasp.filter_front_facing_surface", side_effect=lambda points, normals, view: (points, normals, np.ones(len(points), dtype=bool))):
+            result = generate_multi_view_grasps(
+                "ignored", 3,
+                loader=lambda _: (np.zeros((1, 3)), np.array([[0.0, 0.0, 1.0]])),
+                detector=detector,
+                scorer=lambda grasps, _: grasps,
+                deduplicate=False,
+            )
+
+        self.assertEqual([grasp["view_id"] for grasp in result.grasps], [0, 2])
+        self.assertEqual(result.view_candidate_counts[1], 0)
+        skipped = next(item for item in result.skipped_views if item["view_id"] == 1)
+        self.assertEqual(skipped["reason"], "processing_error")
+        self.assertEqual(skipped["error_type"], "RuntimeError")
+        self.assertEqual(skipped["error_message"], "detector unavailable")
+
+    def test_scorer_error_skips_only_its_view(self):
+        def scorer(grasps, _):
+            if grasps[0]["view_id"] == 1:
+                raise ValueError("scorer unavailable")
+            return grasps
+
+        with patch("multi_view_grasp.filter_front_facing_surface", side_effect=lambda points, normals, view: (points, normals, np.ones(len(points), dtype=bool))):
+            result = generate_multi_view_grasps(
+                "ignored", 3,
+                loader=lambda _: (np.zeros((1, 3)), np.array([[0.0, 0.0, 1.0]])),
+                detector=lambda *args: [{"T_gripper_object": np.eye(4), "view_id": args[-1]["view_id"]}],
+                scorer=scorer,
+                deduplicate=False,
+            )
+
+        self.assertEqual([grasp["view_id"] for grasp in result.grasps], [0, 2])
+        self.assertEqual(result.view_candidate_counts[1], 0)
+        skipped = next(item for item in result.skipped_views if item["view_id"] == 1)
+        self.assertEqual(skipped["reason"], "processing_error")
+        self.assertEqual(skipped["error_type"], "ValueError")
+        self.assertEqual(skipped["error_message"], "scorer unavailable")
+
 
 if __name__ == "__main__":
     unittest.main()

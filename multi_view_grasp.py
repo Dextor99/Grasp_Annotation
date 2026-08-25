@@ -87,6 +87,15 @@ def _score_total(grasp):
     return float("-inf")
 
 
+def _processing_error(view_id, error):
+    return {
+        "view_id": view_id,
+        "reason": "processing_error",
+        "error_type": type(error).__name__,
+        "error_message": str(error),
+    }
+
+
 def generate_multi_view_grasps(
     path,
     num_views=60,
@@ -113,35 +122,39 @@ def generate_multi_view_grasps(
     view_candidate_counts = {}
 
     for view_id, view in enumerate(generate_viewpoints(num_views)):
-        visible_points, visible_normals, _ = filter_front_facing_surface(points, normals, view)
-        if len(visible_points) == 0:
+        try:
+            visible_points, visible_normals, _ = filter_front_facing_surface(points, normals, view)
+            if len(visible_points) == 0:
+                view_candidate_counts[view_id] = 0
+                skipped_views.append({"view_id": view_id, "reason": "no_front_facing_points"})
+                continue
+
+            normalized_view = view / np.linalg.norm(view)
+            detector_candidates = detector(
+                visible_points, visible_normals, normalized_view, {"view_id": view_id}
+            )
+            detector_candidates = [] if detector_candidates is None else list(detector_candidates)
+            view_candidate_counts[view_id] = len(detector_candidates)
+            if not detector_candidates:
+                skipped_views.append({"view_id": view_id, "reason": "no_candidates"})
+                continue
+
+            owned_candidates = [copy.deepcopy(candidate) for candidate in detector_candidates]
+            scored = scorer(owned_candidates, cloud)
+            scored = owned_candidates if scored is None else scored
+            owned_scored = [copy.deepcopy(candidate) for candidate in scored if isinstance(candidate, dict)]
+            if not owned_scored:
+                skipped_views.append({"view_id": view_id, "reason": "no_candidates"})
+                continue
+            for candidate in owned_scored:
+                grasp = candidate
+                grasp["view_id"] = view_id
+                grasp["view_direction"] = normalized_view.copy()
+                grasp["score_total"] = _score_total(grasp)
+                grasps.append(grasp)
+        except Exception as error:
             view_candidate_counts[view_id] = 0
-            skipped_views.append({"view_id": view_id, "reason": "no_front_facing_points"})
-            continue
-
-        normalized_view = view / np.linalg.norm(view)
-        detector_candidates = detector(
-            visible_points, visible_normals, normalized_view, {"view_id": view_id}
-        )
-        detector_candidates = [] if detector_candidates is None else list(detector_candidates)
-        view_candidate_counts[view_id] = len(detector_candidates)
-        if not detector_candidates:
-            skipped_views.append({"view_id": view_id, "reason": "no_candidates"})
-            continue
-
-        owned_candidates = [copy.deepcopy(candidate) for candidate in detector_candidates]
-        scored = scorer(owned_candidates, cloud)
-        scored = owned_candidates if scored is None else scored
-        owned_scored = [copy.deepcopy(candidate) for candidate in scored if isinstance(candidate, dict)]
-        if not owned_scored:
-            skipped_views.append({"view_id": view_id, "reason": "no_candidates"})
-            continue
-        for candidate in owned_scored:
-            grasp = candidate
-            grasp["view_id"] = view_id
-            grasp["view_direction"] = normalized_view.copy()
-            grasp["score_total"] = _score_total(grasp)
-            grasps.append(grasp)
+            skipped_views.append(_processing_error(view_id, error))
 
     if deduplicate:
         grasps = merge_duplicate_grasps(
