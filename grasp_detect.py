@@ -3,6 +3,7 @@ import math
 import open3d as o3d
 import numpy as np
 import copy
+from scipy.spatial import cKDTree
 from cloud_process import frames_process
 from gripper_model import create_gripper_model
 from profiling import active_profiler, profiled
@@ -239,7 +240,51 @@ def slide_gripper_along_z(
     return moved_grippers
 
 #####################碰撞检测
-def check_collision(gripper_meshes, point_cloud, threshold=2.0):
+def aabb_overlaps(min_a, max_a, min_b, max_b, margin=0.0):
+    """Return whether two axis-aligned boxes overlap after expanding both by margin."""
+    min_a = np.asarray(min_a, dtype=float)
+    max_a = np.asarray(max_a, dtype=float)
+    min_b = np.asarray(min_b, dtype=float)
+    max_b = np.asarray(max_b, dtype=float)
+    if any(value.shape != (3,) for value in (min_a, max_a, min_b, max_b)):
+        raise ValueError("AABB bounds must have shape (3,)")
+    return bool(np.all(min_a <= max_b + margin) and np.all(min_b <= max_a + margin))
+
+
+class CollisionIndex:
+    """Reusable point-cloud index for collision broad-phase queries."""
+
+    def __init__(self, points):
+        points = np.asarray(points, dtype=float)
+        if points.ndim != 2 or points.shape[1] != 3 or len(points) == 0:
+            raise ValueError("collision index requires a non-empty (N, 3) point array")
+        if not np.isfinite(points).all():
+            raise ValueError("collision index points must be finite")
+        self.points = points
+        self.tree = cKDTree(points)
+        self.min_bound = points.min(axis=0)
+        self.max_bound = points.max(axis=0)
+
+    @classmethod
+    def from_point_cloud(cls, point_cloud):
+        return cls(np.asarray(point_cloud.points))
+
+    def query_aabb(self, min_bound, max_bound):
+        """Return original point indices inside an AABB using the cached KDTree."""
+        min_bound = np.asarray(min_bound, dtype=float)
+        max_bound = np.asarray(max_bound, dtype=float)
+        center = (min_bound + max_bound) / 2.0
+        radius = float(np.linalg.norm(max_bound - min_bound) / 2.0)
+        candidates = self.tree.query_ball_point(center, radius)
+        if not candidates:
+            return np.empty(0, dtype=np.int64)
+        indices = np.asarray(candidates, dtype=np.int64)
+        local = self.points[indices]
+        inside = np.all((local >= min_bound) & (local <= max_bound), axis=1)
+        return np.sort(indices[inside])
+
+
+def check_collision(gripper_meshes, point_cloud, threshold=2.0, collision_index=None):
     """
     检测夹爪与点云是否碰撞
     参数:
@@ -249,25 +294,34 @@ def check_collision(gripper_meshes, point_cloud, threshold=2.0):
     返回:
         bool: True表示有碰撞，False表示无碰撞
     """
+    if collision_index is None:
+        collision_index = CollisionIndex.from_point_cloud(point_cloud)
+
     # 合并夹爪所有网格
     combined_mesh = gripper_meshes[0] + gripper_meshes[1] + gripper_meshes[2]
 
-    # 创建夹爪的KD树
+    gripper_min = np.asarray(combined_mesh.get_min_bound(), dtype=float)
+    gripper_max = np.asarray(combined_mesh.get_max_bound(), dtype=float)
+    if not np.isfinite(gripper_min).all() or not np.isfinite(gripper_max).all():
+        return True
+
+    # Broad phase: no object point can collide outside the expanded gripper AABB.
+    local_min = gripper_min - threshold
+    local_max = gripper_max + threshold
+    if not aabb_overlaps(local_min, local_max, collision_index.min_bound, collision_index.max_bound):
+        return False
+    local_indices = collision_index.query_aabb(local_min, local_max)
+    if len(local_indices) == 0:
+        return False
+
+    # 精确阶段仍使用原有 1000 点夹爪采样，但只查询局部物体点。
     gripper_pcd = combined_mesh.sample_points_uniformly(number_of_points=1000)
-    gripper_tree = o3d.geometry.KDTreeFlann(gripper_pcd)
-
-    # 检查点云中的每个点
-    points = np.asarray(point_cloud.points)
-    for pt in points:
-        # 查找夹爪中最近的点
-        [k, idx, _] = gripper_tree.search_knn_vector_3d(pt, 1)
-        nearest_pt = np.asarray(gripper_pcd.points)[idx[0]]
-        distance = np.linalg.norm(pt - nearest_pt)
-
-        if distance < threshold:
-            return True  # 有碰撞
-
-    return False  # 无碰撞
+    gripper_points = np.asarray(gripper_pcd.points)
+    if len(gripper_points) == 0 or not np.isfinite(gripper_points).all():
+        return True
+    gripper_tree = cKDTree(gripper_points)
+    distances, _ = gripper_tree.query(collision_index.points[local_indices], k=1)
+    return bool(np.any(distances < threshold))
 
 def filter_collision_free_grippers(gripper_list, point_cloud, threshold=2.0):
     """
@@ -281,10 +335,11 @@ def filter_collision_free_grippers(gripper_list, point_cloud, threshold=2.0):
     返回：
         filtered_list: 无碰撞的夹爪列表（字段保持不变）
     """
+    collision_index = CollisionIndex.from_point_cloud(point_cloud)
     filtered_list = []
     total = len(gripper_list)
     for i, gripper in enumerate(gripper_list):
-        if not check_collision(gripper['meshes'], point_cloud, threshold):
+        if not check_collision(gripper['meshes'], point_cloud, threshold, collision_index=collision_index):
             filtered_list.append(gripper)
         if (i + 1) % 100 == 0 or i == total - 1:
             print(f"检测进度：{i+1}/{total} 个夹爪")
