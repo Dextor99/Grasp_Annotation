@@ -14,6 +14,7 @@ class GraspDatasetPaths:
     json_path: Path
     npz_path: Path
     meta_path: Path
+    saved_count: int
 
 
 def _valid_pose(grasp):
@@ -91,7 +92,7 @@ def _record(grasp, index, pose):
     opening = _finite_number(grasp.get("opening", grasp.get("gripper_width")))
     total = _finite_number(grasp.get("score_total"))
     record = {
-        "id": f"grasp-{index:06d}",
+        "id": index,
         "translation": pose[:3, 3].tolist(),
         "rotation": rotation.reshape(-1).tolist(),
         "quaternion_xyzw": Rotation.from_matrix(rotation).as_quat().tolist(),
@@ -139,7 +140,7 @@ def save_grasp_dataset(grasps, output_directory, metadata):
     view_ids = np.asarray([record["view_id"] if isinstance(record["view_id"], (int, float)) else -1 for record in records], dtype=int)
 
     paths = GraspDatasetPaths(
-        output_directory / "grasps.json", output_directory / "grasps.npz", output_directory / "meta.json"
+        output_directory / "grasps.json", output_directory / "grasps.npz", output_directory / "meta.json", len(records)
     )
     paths.json_path.write_text(json.dumps(records, indent=2, allow_nan=False), encoding="utf-8")
     np.savez(

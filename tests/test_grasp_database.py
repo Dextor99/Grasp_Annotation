@@ -36,7 +36,8 @@ class GraspDatabaseTests(unittest.TestCase):
             records = json.loads(result.json_path.read_text(encoding="utf-8"))
             self.assertEqual(len(records), 1)
             record = records[0]
-            self.assertEqual(record["id"], "grasp-000000")
+            self.assertEqual(result.saved_count, 1)
+            self.assertEqual(record["id"], 0)
             self.assertEqual(record["translation"], [1.0, 2.0, 3.0])
             self.assertEqual(record["rotation"], np.eye(3).reshape(-1).tolist())
             self.assertEqual(record["quaternion_xyzw"], [0.0, 0.0, 0.0, 1.0])
@@ -70,6 +71,7 @@ class GraspDatabaseTests(unittest.TestCase):
     def test_empty_dataset_uses_fixed_npz_shapes_and_default_metadata(self):
         with tempfile.TemporaryDirectory() as directory:
             result = save_grasp_dataset([], Path(directory) / "new-output", {})
+            self.assertEqual(result.saved_count, 0)
             self.assertEqual(json.loads(result.json_path.read_text(encoding="utf-8")), [])
             with np.load(result.npz_path) as dataset:
                 self.assertEqual(dataset["poses"].shape, (0, 4, 4))
@@ -87,42 +89,49 @@ class GraspDatabaseTests(unittest.TestCase):
         invalid_shape = {"T_gripper_object": np.eye(3)}
         invalid_nan = {"T_gripper_object": np.full((4, 4), np.nan)}
         invalid_rotation = {"T_gripper_object": np.diag([2.0, 1.0, 1.0, 1.0])}
+        invalid_homogeneous = {"T_gripper_object": np.array([
+            [1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0],
+            [0.0, 0.0, 1.0, 0.0], [0.0, 0.0, 1.0, 1.0],
+        ])}
         valid = {"T_gripper_object": np.eye(4), "score_total": 1.0}
         with tempfile.TemporaryDirectory() as directory:
-            result = save_grasp_dataset([invalid_shape, invalid_nan, invalid_rotation, valid], directory, {})
+            result = save_grasp_dataset([invalid_shape, invalid_nan, invalid_rotation, invalid_homogeneous, valid], directory, {})
+            self.assertEqual(result.saved_count, 1)
             self.assertEqual(len(json.loads(result.json_path.read_text(encoding="utf-8"))), 1)
             with np.load(result.npz_path) as dataset:
                 self.assertEqual(dataset["poses"].shape, (1, 4, 4))
 
 
 class MainTests(unittest.TestCase):
-    def test_parser_rejects_nonpositive_view_count_and_accepts_experimental_count(self):
+    def test_parser_only_accepts_supported_view_counts(self):
         parser = main.build_parser()
-        with self.assertRaises(SystemExit):
-            parser.parse_args(["--object", "a.ply", "--output", "out", "--views", "0"])
-        self.assertEqual(parser.parse_args(["--object", "a.ply", "--output", "out", "--views", "37"]).views, 37)
+        for views in (20, 40, 60, 100):
+            with self.subTest(views=views):
+                self.assertEqual(parser.parse_args(["--object", "a.ply", "--output", "out", "--views", str(views)]).views, views)
+        for views in (0, 37):
+            with self.subTest(views=views):
+                with self.assertRaises(SystemExit):
+                    parser.parse_args(["--object", "a.ply", "--output", "out", "--views", str(views)])
 
-    def test_pipeline_saves_and_reports_summary(self):
+    def test_pipeline_reports_saved_count_when_serializer_drops_invalid_pose(self):
         result = type("Result", (), {
-            "grasps": [{"T_gripper_object": np.eye(4), "score_total": 0.8}],
+            "grasps": [
+                {"T_gripper_object": np.eye(4), "score_total": 0.8},
+                {"T_gripper_object": np.eye(3), "score_total": 0.1},
+            ],
             "skipped_views": [{"view_id": 1, "reason": "no_candidates"}],
             "view_candidate_counts": {0: 2, 1: 0},
         })()
-        paths = type("Paths", (), {
-            "json_path": Path("out/grasps.json"),
-            "npz_path": Path("out/grasps.npz"),
-            "meta_path": Path("out/meta.json"),
-        })()
-        with patch.object(main, "generate_multi_view_grasps", return_value=result) as generate, patch.object(main, "save_grasp_dataset", return_value=paths) as save, patch("builtins.print") as printed:
-            exit_code = main.run(["--object", "object.ply", "--views", "20", "--output", "out"])
+        with tempfile.TemporaryDirectory() as directory, patch.object(main, "generate_multi_view_grasps", return_value=result) as generate, patch("builtins.print") as printed:
+            exit_code = main.run(["--object", "object.ply", "--views", "20", "--output", directory])
         self.assertEqual(exit_code, 0)
         generate.assert_called_once_with("object.ply", 20, 5.0, 10.0)
-        save.assert_called_once()
         output = "\n".join(str(call.args[0]) for call in printed.call_args_list)
         self.assertIn("processed views: 2", output)
         self.assertIn("skipped views: 1", output)
         self.assertIn("raw grasps: 2", output)
-        self.assertIn("deduplicated grasps: 1", output)
+        self.assertIn("deduplicated grasps: 2", output)
+        self.assertIn("saved grasps: 1", output)
         self.assertIn("per-view candidate counts: {0: 2, 1: 0}", output)
         self.assertIn("grasps.json", output)
 

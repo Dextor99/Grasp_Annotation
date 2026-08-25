@@ -6,17 +6,10 @@ from grasp_database import save_grasp_dataset
 from multi_view_grasp import generate_multi_view_grasps
 
 
-def _positive_integer(value):
-    number = int(value)
-    if number <= 0:
-        raise argparse.ArgumentTypeError("must be a positive integer")
-    return number
-
-
 def build_parser():
     parser = argparse.ArgumentParser(description="Generate a multi-view grasp dataset.")
     parser.add_argument("--object", required=True, dest="object_path")
-    parser.add_argument("--views", type=_positive_integer, default=60)
+    parser.add_argument("--views", type=int, choices=[20, 40, 60, 100], default=60)
     parser.add_argument("--output", required=True)
     parser.add_argument("--position-threshold-mm", type=float, default=5.0)
     parser.add_argument("--rotation-threshold-deg", type=float, default=10.0)
@@ -39,6 +32,7 @@ def run(argv=None):
     print(f"skipped views: {len(result.skipped_views)}")
     print(f"raw grasps: {raw_count}")
     print(f"deduplicated grasps: {len(result.grasps)}")
+    print(f"saved grasps: {paths.saved_count}")
     print(f"per-view candidate counts: {result.view_candidate_counts}")
     print(f"output: {paths.json_path}, {paths.npz_path}, {paths.meta_path}")
     return 0
