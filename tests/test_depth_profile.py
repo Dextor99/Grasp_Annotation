@@ -13,11 +13,15 @@ class DepthProfilerTests(unittest.TestCase):
             variant_id=3,
             depth_id=5,
             depth_value=42.5,
+            depth_ratio=0.425,
             collision_free=True,
             opening_valid=True,
             intersection_valid=True,
             contact_points=7,
+            surface_point_count=100,
+            candidate_id=12,
         )
+        profiler.update_scores([{"id": 12, "final_score": 8.5}])
 
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory) / "depth_profile.csv"
@@ -28,9 +32,12 @@ class DepthProfilerTests(unittest.TestCase):
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0]["variant_id"], "3")
         self.assertEqual(rows[0]["depth_id"], "5")
+        self.assertEqual(rows[0]["depth_ratio"], "0.425")
         self.assertEqual(rows[0]["collision_free"], "1")
         self.assertEqual(rows[0]["final_valid"], "1")
         self.assertEqual(rows[0]["contact_points"], "7")
+        self.assertEqual(rows[0]["contact_ratio"], "0.07")
+        self.assertEqual(rows[0]["score_total"], "8.5")
 
     def test_empty_profiler_still_writes_header(self):
         profiler = DepthProfiler()

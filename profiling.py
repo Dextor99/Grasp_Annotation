@@ -32,6 +32,7 @@ class ProfileRecorder:
         self.counts: dict[str, int | float] = {}
         self.group_counts: dict[str, dict[str, dict[str, int]]] = {}
         self.matrix_counts: dict[str, dict[tuple[str, str], dict[str, int]]] = {}
+        self.depth_profile = None
         self._token = None
 
     def __enter__(self) -> "ProfileRecorder":
@@ -56,7 +57,7 @@ class ProfileRecorder:
             self.records.append(ProfileRecord(name, time.perf_counter() - started))
 
     def print_report(self) -> None:
-        if not self.enabled or (not self.records and not self.counts and not self.group_counts and not self.matrix_counts):
+        if not self.enabled or (not self.records and not self.counts and not self.group_counts and not self.matrix_counts and self.depth_profile is None):
             return
         total = sum(record.seconds for record in self.records)
         print("\n=== Grasp pipeline profiling ===")
@@ -87,6 +88,14 @@ class ProfileRecorder:
                     f"{phases.get('collision_free', 0):16d} {phases.get('final', 0):12d}"
                 )
         self.write_matrix_csv()
+        if self.depth_profile is not None:
+            import os
+            self.depth_profile.save(os.getenv("GRASP_DEPTH_PROFILE_PATH", "depth_profile.csv"))
+
+    def attach_depth_profile(self, depth_profile) -> None:
+        """Attach candidate-level depth records for deferred score enrichment."""
+        if self.enabled:
+            self.depth_profile = depth_profile
 
     def count(self, name: str, value) -> None:
         """Record a candidate/cardinality metric when profiling is enabled."""

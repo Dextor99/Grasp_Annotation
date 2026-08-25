@@ -411,6 +411,8 @@ if __name__ == "__main__":
         final_candidate_grippers = profiler.measure(
             "pipeline.final_score", evaluate_grasp_final_score, candidate_grippers
         )
+        if profiler.depth_profile is not None:
+            profiler.depth_profile.update_scores(final_candidate_grippers)
         # 3. 保留得分前10的夹爪及mesh
         top_candidate_grippers, top_candidate_grippers_meshes = profiler.measure(
             "pipeline.top_k", keep_top_k_grippers, final_candidate_grippers, top_k=40

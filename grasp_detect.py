@@ -720,6 +720,7 @@ def grasp_detect(ply_path,i):
     #下采样的物体点云，AABB包围框中心坐标，物体坐标系，采样点，采样平面坐标系集合，世界坐标系，采样平面，采样平面坐标系物理模型，物体到世界转换矩阵
     profiler = active_profiler()
     depth_profile = DepthProfiler() if profiler.enabled else None
+    profiler.attach_depth_profile(depth_profile)
     cloud_down, obj_center, obj_axes, sample_points, frames, object_world_axis, projections, frame_arrows_list, T_object_world = profiler.measure(
         "detect.frames_process", frames_process, ply_path)
 
@@ -917,13 +918,14 @@ def grasp_detect(ply_path,i):
                 variant_id=candidate['base_id'],
                 depth_id=candidate['depth_id'],
                 depth_value=candidate['depth'],
+                depth_ratio=(candidate['depth'] / object_radius) if object_radius else 0.0,
                 collision_free=candidate_id in collision_ids,
                 opening_valid=candidate_id in opening_ids,
                 intersection_valid=final_candidate is not None,
                 contact_points=contact_points,
+                surface_point_count=len(pts),
+                candidate_id=candidate_id,
             )
-        import os
-        depth_profile.save(os.getenv("GRASP_DEPTH_PROFILE_PATH", "depth_profile.csv"))
 
 #########################可视化过程中夹爪原点
     origin_spheres = visualize_gripper_origins_from_object_frame(moved_gripper_variants, T_object_world, radius=2.0)
