@@ -1027,12 +1027,18 @@ def grasp_detect_from_surface(
     if not np.isfinite(norm) or norm <= 1e-12:
         raise ValueError("view_direction must be a non-zero finite vector")
     view = view / norm
+    surface_center = np.mean(surface_points, axis=0) if len(surface_points) else object_data.center
     frame = build_local_frames(
         np.asarray([view]),
         object_data.center,
         object_data.sample_radius,
         object_data.obj_axes[:, 0],
     )[0]
+    # Keep the approach frame tied to the selected surface, not a precomputed
+    # full-cloud frame.  The 100 mm margin matches frames_process semantics.
+    frame["origin"] = surface_center + view * 100.0
+    frame["transform"] = frame["transform"].copy()
+    frame["transform"][:3, 3] = frame["origin"]
     _, grasps, _, _, _ = grasp_detect(
         object_data.ply_path,
         1,

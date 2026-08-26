@@ -10,6 +10,19 @@ from cloud_process import frames_process
 from model_scale import get_model_scale
 
 
+def orient_normals_outward(points, normals, center):
+    """Orient point-cloud normals away from the object center for view filtering."""
+    points = np.asarray(points, dtype=float)
+    normals = np.asarray(normals, dtype=float).copy()
+    center = np.asarray(center, dtype=float)
+    if points.shape != normals.shape or points.ndim != 2 or points.shape[1] != 3:
+        raise ValueError("points and normals must both have shape (N, 3)")
+    radial = points - center
+    flip = np.sum(radial * normals, axis=1) < 0
+    normals[flip] *= -1.0
+    return normals
+
+
 @dataclass
 class ObjectData:
     """Preprocessed object state shared by all view-level grasp calls."""
@@ -55,7 +68,7 @@ def prepare_object(ply_path: str) -> ObjectData:
     result = frames_process(ply_path)
     cloud_down, center, obj_axes, sample_points, frames, object_world_axis, projections, frame_arrows, transform = result
     points = np.asarray(cloud_down.points)
-    normals = np.asarray(cloud_down.normals)
+    normals = orient_normals_outward(points, np.asarray(cloud_down.normals), center)
     sample_radius = float(np.linalg.norm(sample_points[0] - center))
     radius = sample_radius - 100.0
     if radius <= 0 or not np.isfinite(radius):
