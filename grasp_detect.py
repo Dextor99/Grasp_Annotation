@@ -357,6 +357,15 @@ def filter_collision_free_grippers(gripper_list, point_cloud, threshold=2.0):
 
 
 ##########################保留每个depth和旋转角度下，开口最小的一个夹爪
+# Structural invalidity is defined as opening == 0 OR depth == 0.
+def filter_structurally_valid_grippers(gripper_list):
+    """Remove candidates invalid by the method definition before collision checks."""
+    return [
+        gripper for gripper in gripper_list
+        if gripper.get("opening", 0) > 0 and gripper.get("depth", 0) > 0
+    ]
+
+
 def filter_by_min_opening_per_depth_angle(gripper_list):
     """
     在每个 depth 和 angle_deg 下保留 opening 最小的夹爪。
@@ -371,6 +380,7 @@ def filter_by_min_opening_per_depth_angle(gripper_list):
     from collections import defaultdict
 
     # 1. 先过滤掉 opening==0 且 depth==0 的夹爪
+    # Structural rule: opening == 0 OR depth == 0 is invalid.
     cleaned = [
         g for g in gripper_list
         if not (g['opening'] == 0 or g['depth'] == 0)
@@ -823,7 +833,21 @@ def grasp_detect(ply_path,i):
         max_distance=150,
         depths=depths,
     )
-    profiler.count("candidates.before_collision", len(moved_gripper_variants))
+    raw_candidates = moved_gripper_variants
+    rule_valid_candidates = filter_structurally_valid_grippers(raw_candidates)
+    zero_depth_count = sum(candidate.get("depth", 0) <= 0 for candidate in raw_candidates)
+    zero_opening_count = sum(candidate.get("opening", 0) <= 0 for candidate in raw_candidates)
+    zero_both_count = sum(
+        candidate.get("depth", 0) <= 0 and candidate.get("opening", 0) <= 0
+        for candidate in raw_candidates
+    )
+    profiler.count("candidates.raw", len(raw_candidates))
+    profiler.count("candidates.rule_valid", len(rule_valid_candidates))
+    profiler.count("rejected.zero_depth", zero_depth_count)
+    profiler.count("rejected.zero_opening", zero_opening_count)
+    profiler.count("rejected.zero_both", zero_both_count)
+    profiler.count("rejected.structural_total", len(raw_candidates) - len(rule_valid_candidates))
+    profiler.count("candidates.before_collision", len(rule_valid_candidates))
     def record_candidate_funnel(candidates, phase):
         for candidate in candidates:
             if 'depth' in candidate:
@@ -835,6 +859,7 @@ def grasp_detect(ply_path,i):
                     profiler.matrix_count("variant_depth", variant_id, candidate['depth'], phase)
 
     record_candidate_funnel(moved_gripper_variants, "candidate")
+    record_candidate_funnel(rule_valid_candidates, "rule_valid")
     #合并所有夹爪网络
     all_meshes = []
     for item in moved_gripper_variants:
@@ -851,7 +876,7 @@ def grasp_detect(ply_path,i):
     non_colliding_grippers = profiler.measure(
         "detect.collision_filter",
         filter_collision_free_grippers,
-        moved_gripper_variants,
+        rule_valid_candidates,
         point_cloud=cloud_down,
         threshold=3.0,
     )
@@ -943,6 +968,7 @@ def grasp_detect(ply_path,i):
                 depth_value=candidate['depth'],
                 angle_deg=candidate['angle_deg'],
                 opening=candidate['opening'],
+                structural_valid=(candidate['opening'] > 0 and candidate['depth'] > 0),
                 collision_free=candidate['id'] in collision_ids,
                 opening_selected=candidate['id'] in opening_ids,
                 final_valid=candidate['id'] in final_ids,

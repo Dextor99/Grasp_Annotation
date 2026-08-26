@@ -15,6 +15,7 @@ class OpeningProfilerTests(unittest.TestCase):
             depth_value=30.0,
             angle_deg=45.0,
             opening=60.0,
+            structural_valid=True,
             collision_free=True,
             opening_selected=True,
             final_valid=True,
@@ -29,6 +30,7 @@ class OpeningProfilerTests(unittest.TestCase):
         self.assertEqual(rows[0]["depth_id"], "2")
         self.assertEqual(rows[0]["angle_deg"], "45.0")
         self.assertEqual(rows[0]["opening"], "60.0")
+        self.assertEqual(rows[0]["structural_valid"], "1")
         self.assertEqual(rows[0]["collision_free"], "1")
         self.assertEqual(rows[0]["opening_selected"], "1")
         self.assertEqual(rows[0]["final_valid"], "1")
