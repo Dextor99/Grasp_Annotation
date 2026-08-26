@@ -9,6 +9,7 @@ from gripper_model import create_gripper_model
 from profiling import active_profiler, profiled
 from depth_sampling import generate_depth_samples
 from depth_profile import DepthProfiler
+from opening_profile import OpeningProfiler
 
 def generate_cylinder_sections(origin,pcd_points, frame, cyl_radius=75.0, offset=100.0, height=1.0):
     """
@@ -722,7 +723,9 @@ def grasp_detect(ply_path,i):
     vis_list = []
     vis_list1 = []
     depth_profile = DepthProfiler() if profiler.enabled else None
+    opening_profile = OpeningProfiler() if profiler.enabled else None
     profiler.attach_depth_profile(depth_profile)
+    profiler.attach_opening_profile(opening_profile)
     cloud_down, obj_center, obj_axes, sample_points, frames, object_world_axis, projections, frame_arrows_list, T_object_world = profiler.measure(
         "detect.frames_process", frames_process, ply_path)
 
@@ -927,6 +930,22 @@ def grasp_detect(ply_path,i):
                 contact_points=contact_points,
                 surface_point_count=len(pts),
                 candidate_id=candidate_id,
+            )
+
+    if opening_profile is not None:
+        collision_ids = {candidate['id'] for candidate in non_colliding_grippers}
+        opening_ids = {candidate['id'] for candidate in min_opening_grippers}
+        final_ids = {candidate['id'] for candidate in filtered}
+        for candidate in moved_gripper_variants:
+            opening_profile.add(
+                candidate_id=candidate['id'],
+                depth_id=candidate['depth_id'],
+                depth_value=candidate['depth'],
+                angle_deg=candidate['angle_deg'],
+                opening=candidate['opening'],
+                collision_free=candidate['id'] in collision_ids,
+                opening_selected=candidate['id'] in opening_ids,
+                final_valid=candidate['id'] in final_ids,
             )
 
 #########################可视化过程中夹爪原点
