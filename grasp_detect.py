@@ -4,7 +4,7 @@ import open3d as o3d
 import numpy as np
 import copy
 from scipy.spatial import cKDTree
-from cloud_process import frames_process
+from cloud_process import frames_process, build_local_frames
 from gripper_model import create_gripper_model
 from profiling import active_profiler, profiled
 from depth_sampling import generate_depth_samples
@@ -727,7 +727,7 @@ def visualize_gripper_origins_from_object_frame(moved_grippers, T_object_world, 
     return spheres
 
 @profiled("detect.grasp_detect.total")
-def grasp_detect(ply_path,i):
+def grasp_detect(ply_path, i, object_data=None, frame_override=None, enable_visualization=True):
     #下采样的物体点云，AABB包围框中心坐标，物体坐标系，采样点，采样平面坐标系集合，世界坐标系，采样平面，采样平面坐标系物理模型，物体到世界转换矩阵
     profiler = active_profiler()
     vis_list = []
@@ -736,10 +736,13 @@ def grasp_detect(ply_path,i):
     opening_profile = OpeningProfiler() if profiler.enabled else None
     profiler.attach_depth_profile(depth_profile)
     profiler.attach_opening_profile(opening_profile)
-    cloud_down, obj_center, obj_axes, sample_points, frames, object_world_axis, projections, frame_arrows_list, T_object_world = profiler.measure(
-        "detect.frames_process", frames_process, ply_path)
+    if object_data is None:
+        frames_result = profiler.measure("detect.frames_process", frames_process, ply_path)
+    else:
+        frames_result = object_data.frames_result
+    cloud_down, obj_center, obj_axes, sample_points, frames, object_world_axis, projections, frame_arrows_list, T_object_world = frames_result
 
-    frame = frames[i - 1]
+    frame = frame_override if frame_override is not None else frames[i - 1]
     # 获取点云坐标（从 pcd 或 downsampled 点云）
     pts = np.asarray(cloud_down.points)  # 或 frames_process 中直接返回
     # frames_process samples on (object_radius + 100 mm); derive the same
@@ -975,11 +978,14 @@ def grasp_detect(ply_path,i):
             )
 
 #########################可视化过程中夹爪原点
-    origin_spheres = visualize_gripper_origins_from_object_frame(moved_gripper_variants, T_object_world, radius=2.0)
+    if enable_visualization:
+        origin_spheres = visualize_gripper_origins_from_object_frame(moved_gripper_variants, T_object_world, radius=2.0)
+    else:
+        origin_spheres = []
 
     vis_list = []
     # 可视化
-    if cyl0 is not None and cyl1 is not None:
+    if enable_visualization and cyl0 is not None and cyl1 is not None:
         cyl0.paint_uniform_color([1.0, 0.0, 0.0])  # 红
         cyl1.paint_uniform_color([0.0, 0.0, 1.0])  # 蓝
         # 显示第i个
@@ -999,6 +1005,45 @@ def grasp_detect(ply_path,i):
         # o3d.visualization.draw_geometries(vis_list1, window_name=f"Cylinder at dir {i}")
 
     return cloud_down,filtered,candidate_grippers_meshes,vis_list,vis_list1
+
+
+def grasp_detect_from_surface(
+    object_data,
+    surface_points,
+    surface_normals,
+    view_direction,
+    config=None,
+    enable_visualization=False,
+):
+    """Generate grasps for a view while reusing one preprocessed object."""
+    surface_points = np.asarray(surface_points, dtype=float)
+    surface_normals = np.asarray(surface_normals, dtype=float)
+    view = np.asarray(view_direction, dtype=float)
+    if surface_points.ndim != 2 or surface_points.shape[1] != 3:
+        raise ValueError("surface_points must have shape (N, 3)")
+    if surface_normals.shape != surface_points.shape:
+        raise ValueError("surface_normals must match surface_points shape")
+    norm = np.linalg.norm(view)
+    if not np.isfinite(norm) or norm <= 1e-12:
+        raise ValueError("view_direction must be a non-zero finite vector")
+    view = view / norm
+    frame = build_local_frames(
+        np.asarray([view]),
+        object_data.center,
+        object_data.sample_radius,
+        object_data.obj_axes[:, 0],
+    )[0]
+    _, grasps, _, _, _ = grasp_detect(
+        object_data.ply_path,
+        1,
+        object_data=object_data,
+        frame_override=frame,
+        enable_visualization=enable_visualization,
+    )
+    for grasp in grasps:
+        grasp["surface_point_count"] = int(len(surface_points))
+        grasp["view_direction"] = view.tolist()
+    return grasps
 
 # if __name__ == "__main__":
 #     ply_path = "model/huixing.ply"
