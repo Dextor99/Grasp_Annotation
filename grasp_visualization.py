@@ -45,8 +45,8 @@ def load_meta(results_dir):
     return metadata
 
 
-def record_to_transform(record):
-    """Convert a finalized record's local-to-object pose to a 4x4 matrix."""
+def record_to_object_transform(record):
+    """Convert a finalized record's gripper-to-object pose to 4x4."""
     try:
         translation = np.asarray(record["translation"], dtype=float)
         rotation = np.asarray(record["rotation_matrix"], dtype=float)
@@ -64,6 +64,38 @@ def record_to_transform(record):
     transform[:3, :3] = rotation
     transform[:3, 3] = translation
     return transform
+
+
+def record_to_transform(record):
+    """Backward-compatible alias for :func:`record_to_object_transform`."""
+    return record_to_object_transform(record)
+
+
+def record_to_world_transform(record, object_data=None):
+    """Compose an object-frame grasp pose with ``T_object_world``.
+
+    Exported records store ``T_gripper_object`` while the point cloud returned
+    by :func:`prepare_object` remains in world coordinates.  ``object_data``
+    is optional for compatibility with callers that already use a common
+    frame; the identity transform is used when it is omitted.
+    """
+    gripper_object = record_to_object_transform(record)
+    if object_data is None:
+        return gripper_object
+    try:
+        object_world = np.asarray(object_data.T_object_world, dtype=float)
+    except (AttributeError, TypeError, ValueError) as error:
+        raise ValueError(f"invalid T_object_world: {error}") from error
+    if object_world.shape != (4, 4) or not np.all(np.isfinite(object_world)):
+        raise ValueError("T_object_world must be a finite (4,4) matrix")
+    if not np.allclose(object_world[3], [0.0, 0.0, 0.0, 1.0], atol=1e-6):
+        raise ValueError("T_object_world must be a homogeneous transform")
+    rotation = object_world[:3, :3]
+    if not np.allclose(rotation.T @ rotation, np.eye(3), atol=1e-5) or not np.isclose(
+        np.linalg.det(rotation), 1.0, atol=1e-5
+    ):
+        raise ValueError("T_object_world rotation must be a valid SO(3) matrix")
+    return object_world @ gripper_object
 
 
 def select_grasps(records, topk=20, score_threshold=None):
@@ -105,7 +137,13 @@ def make_object_cloud(object_path):
     return cloud, object_data
 
 
-def make_gripper_lineset(record, color=(0.9, 0.2, 0.2), finger_length=100.0, finger_thickness=5.0):
+def make_gripper_lineset(
+    record,
+    color=(0.9, 0.2, 0.2),
+    finger_length=100.0,
+    finger_thickness=5.0,
+    object_data=None,
+):
     """Build a lightweight line gripper using the project's local axes."""
     opening = float(record["opening_mm"])
     if not np.isfinite(opening) or opening < 0:
@@ -118,7 +156,7 @@ def make_gripper_lineset(record, color=(0.9, 0.2, 0.2), finger_length=100.0, fin
     )
     lines = np.array([[0, 2], [1, 3], [2, 3]], dtype=np.int32)
     homogeneous = np.column_stack((points_local, np.ones(len(points_local))))
-    points_world = (record_to_transform(record) @ homogeneous.T).T[:, :3]
+    points_world = (record_to_world_transform(record, object_data) @ homogeneous.T).T[:, :3]
     geometry = o3d.geometry.LineSet()
     geometry.points = o3d.utility.Vector3dVector(points_world)
     geometry.lines = o3d.utility.Vector2iVector(lines)
@@ -128,10 +166,10 @@ def make_gripper_lineset(record, color=(0.9, 0.2, 0.2), finger_length=100.0, fin
     return geometry
 
 
-def make_gripper_meshes(record, color=None, include_axes=False):
+def make_gripper_meshes(record, color=None, include_axes=False, object_data=None):
     """Build the actual project gripper meshes at a finalized grasp pose."""
     gripper = GripperModel(opening=float(record["opening_mm"]))
-    gripper.transform(record_to_transform(record))
+    gripper.transform(record_to_world_transform(record, object_data))
     geometries = gripper.get_meshes()
     physical_meshes = geometries if include_axes else geometries[:3]
     if color is not None:
@@ -184,9 +222,9 @@ def make_normal_arrow(record, length=25.0):
     )
 
 
-def make_grasp_frame(record, size=15.0):
+def make_grasp_frame(record, size=15.0, object_data=None):
     frame = o3d.geometry.TriangleMesh.create_coordinate_frame(size=float(size))
-    frame.transform(record_to_transform(record))
+    frame.transform(record_to_world_transform(record, object_data))
     return frame
 
 
@@ -228,9 +266,9 @@ def build_visualization_geometries(
     for record in records:
         color = _record_color(record, color_by, score_min, score_max)
         if style == "mesh":
-            geometries.extend(make_gripper_meshes(record, color=color))
+            geometries.extend(make_gripper_meshes(record, color=color, object_data=object_data))
         else:
-            geometries.append(make_gripper_lineset(record, color=color))
+            geometries.append(make_gripper_lineset(record, color=color, object_data=object_data))
         if show_anchor:
             geometries.append(make_sphere(record["anchor_point"]))
         if show_approach:
@@ -238,7 +276,7 @@ def build_visualization_geometries(
         if show_normal:
             geometries.append(make_normal_arrow(record))
         if show_frame:
-            geometries.append(make_grasp_frame(record))
+            geometries.append(make_grasp_frame(record, object_data=object_data))
     return geometries, object_data
 
 

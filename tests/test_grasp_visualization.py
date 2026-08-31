@@ -2,6 +2,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 
@@ -32,6 +33,50 @@ class GraspVisualizationTests(unittest.TestCase):
         expected = np.eye(4)
         expected[:3, 3] = [1.0, 2.0, 3.0]
         np.testing.assert_array_equal(transform, expected)
+
+    def test_record_to_world_transform_applies_object_world_pose(self):
+        from grasp_visualization import record_to_world_transform
+
+        object_world = np.eye(4)
+        object_world[:3, 3] = [10.0, 20.0, 30.0]
+        object_data = SimpleNamespace(T_object_world=object_world)
+        transform = record_to_world_transform(
+            _record(translation=(1.0, 2.0, 3.0)), object_data
+        )
+
+        np.testing.assert_allclose(transform[:3, 3], [11.0, 22.0, 33.0])
+
+    def test_line_gripper_uses_object_world_pose(self):
+        from grasp_visualization import make_gripper_lineset
+
+        object_world = np.eye(4)
+        object_world[:3, 3] = [10.0, 20.0, 30.0]
+        object_data = SimpleNamespace(T_object_world=object_world)
+        geometry = make_gripper_lineset(
+            _record(translation=(1.0, 2.0, 3.0)),
+            object_data=object_data,
+            finger_length=10.0,
+        )
+
+        np.testing.assert_allclose(np.asarray(geometry.points)[0], [11.0, 9.5, 33.0])
+
+    def test_world_pose_origin_matches_anchor_plus_depth_approach(self):
+        from grasp_visualization import record_to_world_transform
+
+        record = _record(translation=(0.0, 0.0, 10.0))
+        record["anchor_point"] = [10.0, 20.0, 30.0]
+        record["approach_direction"] = [0.0, 0.0, 1.0]
+        record["depth_mm"] = 10.0
+        object_world = np.eye(4)
+        object_world[:3, 3] = [10.0, 20.0, 30.0]
+        actual = record_to_world_transform(
+            record, SimpleNamespace(T_object_world=object_world)
+        )[:3, 3]
+
+        expected = np.asarray(record["anchor_point"]) + record["depth_mm"] * np.asarray(
+            record["approach_direction"]
+        )
+        np.testing.assert_allclose(actual, expected, atol=1e-5)
 
     def test_select_grasps_sorts_by_score(self):
         from grasp_visualization import select_grasps
