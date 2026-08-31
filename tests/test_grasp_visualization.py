@@ -78,6 +78,25 @@ class GraspVisualizationTests(unittest.TestCase):
         )
         np.testing.assert_allclose(actual, expected, atol=1e-5)
 
+    def test_inner_points_geometry_uses_world_pose_and_marks_contacts(self):
+        from grasp_visualization import make_inner_points_geometry
+
+        object_world = np.eye(4)
+        object_world[:3, 3] = [10.0, 20.0, 30.0]
+        object_data = SimpleNamespace(
+            T_object_world=object_world,
+            points=np.asarray(
+                [[10.0, 20.0, 35.0], [10.0, 24.0, 35.0], [10.0, 16.0, 35.0], [40.0, 20.0, 35.0]]
+            ),
+        )
+        record = _record(translation=(0.0, 0.0, 5.0), opening=20.0)
+        geometries = make_inner_points_geometry(record, object_data, finger_length=20.0)
+
+        self.assertEqual(len(geometries), 3)
+        self.assertEqual(len(geometries[0].points), 3)
+        np.testing.assert_allclose(np.asarray(geometries[1].get_center()), [10.0, 16.0, 35.0])
+        np.testing.assert_allclose(np.asarray(geometries[2].get_center()), [10.0, 24.0, 35.0])
+
     def test_select_grasps_sorts_by_score(self):
         from grasp_visualization import select_grasps
 

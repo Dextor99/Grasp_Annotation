@@ -228,6 +228,61 @@ def make_grasp_frame(record, size=15.0, object_data=None):
     return frame
 
 
+def make_inner_points_geometry(
+    record,
+    object_data,
+    finger_length=100.0,
+    finger_thickness=15.0,
+    include_points=True,
+    include_contacts=True,
+):
+    """Highlight object points inside the scoring box and its two Y contacts.
+
+    The legacy scorer evaluates points in the gripper frame over
+    ``x=[-finger_thickness/2, finger_thickness/2]``,
+    ``y=[-opening/2, opening/2]`` and ``z=[-finger_length, 0]``.  This helper
+    reconstructs that same set from the world point cloud for diagnostics.
+    """
+    if not hasattr(object_data, "points"):
+        raise ValueError("object_data must provide points")
+    points_world = np.asarray(object_data.points, dtype=float)
+    if points_world.ndim != 2 or points_world.shape[1] != 3 or not np.all(np.isfinite(points_world)):
+        raise ValueError("object_data.points must be a finite (N,3) array")
+    opening = float(record["opening_mm"])
+    finger_length = float(finger_length)
+    finger_thickness = float(finger_thickness)
+    if opening < 0 or finger_length <= 0 or finger_thickness <= 0:
+        raise ValueError("opening and gripper dimensions must be valid")
+    transform = record_to_world_transform(record, object_data)
+    rotation = transform[:3, :3]
+    origin = transform[:3, 3]
+    points_local = (rotation.T @ (points_world - origin).T).T
+    mask = (
+        (np.abs(points_local[:, 0]) <= finger_thickness / 2.0)
+        & (np.abs(points_local[:, 1]) <= opening / 2.0)
+        & (points_local[:, 2] >= -finger_length)
+        & (points_local[:, 2] <= 0.0)
+    )
+    inner_world = points_world[mask]
+    geometries = []
+    if include_points:
+        cloud = o3d.geometry.PointCloud()
+        cloud.points = o3d.utility.Vector3dVector(inner_world)
+        cloud.paint_uniform_color([0.2, 0.8, 0.2])
+        geometries.append(cloud)
+    if include_contacts and len(inner_world) >= 2:
+        inner_y = points_local[mask, 1]
+        min_point = inner_world[int(np.argmin(inner_y))]
+        max_point = inner_world[int(np.argmax(inner_y))]
+        geometries.extend(
+            [
+                make_sphere(min_point, radius=2.0, color=(0.15, 0.35, 1.0)),
+                make_sphere(max_point, radius=2.0, color=(1.0, 0.75, 0.1)),
+            ]
+        )
+    return geometries
+
+
 def _record_color(record, color_by, score_min, score_max):
     if color_by == "view":
         return group_color(record["view_id"])
@@ -250,6 +305,8 @@ def build_visualization_geometries(
     show_approach=False,
     show_normal=False,
     show_frame=False,
+    show_inner_points=False,
+    show_contacts=False,
 ):
     """Compose object, grippers, and optional diagnostic markers."""
     if mode not in {"single", "overlay", "by_view", "by_anchor", "by_approach"}:
@@ -277,7 +334,42 @@ def build_visualization_geometries(
             geometries.append(make_normal_arrow(record))
         if show_frame:
             geometries.append(make_grasp_frame(record, object_data=object_data))
+        if show_inner_points or show_contacts:
+            geometries.extend(
+                make_inner_points_geometry(
+                    record,
+                    object_data,
+                    include_points=show_inner_points,
+                    include_contacts=show_contacts,
+                )
+            )
     return geometries, object_data
+
+
+DETAIL_FIELDS = (
+    "score_total",
+    "score_force_closure",
+    "score_inner_points_ratio",
+    "score_proj_area_ratio",
+    "score_y_diff",
+    "score_y0_diff",
+    "opening_mm",
+    "depth_mm",
+    "view_id",
+    "anchor_id",
+    "approach_id",
+    "anchor_point",
+    "anchor_normal",
+    "approach_direction",
+)
+
+
+def print_grasp_details(records, start_rank=0):
+    """Print diagnostic score and provenance fields for ranked records."""
+    for offset, record in enumerate(records):
+        print(f"\n--- Grasp rank {int(start_rank) + offset} details ---")
+        for field in DETAIL_FIELDS:
+            print(f"{field}: {record.get(field)}")
 
 
 def print_visualization_summary(all_records, shown_records, meta):

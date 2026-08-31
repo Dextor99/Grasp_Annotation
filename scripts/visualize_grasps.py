@@ -14,6 +14,7 @@ from grasp_visualization import (
     build_visualization_geometries,
     load_grasp_records,
     load_meta,
+    print_grasp_details,
     print_visualization_summary,
     select_grasps,
     show_geometries,
@@ -37,6 +38,13 @@ def build_parser():
     parser.add_argument("--show-approach", action="store_true")
     parser.add_argument("--show-normal", action="store_true")
     parser.add_argument("--show-frame", action="store_true")
+    parser.add_argument("--show-inner-points", action="store_true")
+    parser.add_argument("--show-contacts", action="store_true")
+    parser.add_argument(
+        "--print-details",
+        action="store_true",
+        help="Print score, geometry, and source fields for displayed grasps",
+    )
     parser.add_argument("--point-size", type=float, default=3.0)
     parser.add_argument("--save-image", default=None, help="Optional screenshot path")
     return parser
@@ -76,6 +84,8 @@ def main(arguments=None):
             args.mode, "score"
         )
     print_visualization_summary(records, shown, meta)
+    if args.print_details:
+        print_grasp_details(shown, start_rank=args.index if args.mode == "single" else 0)
     geometries, _ = build_visualization_geometries(
         args.object,
         shown,
@@ -86,6 +96,8 @@ def main(arguments=None):
         show_approach=args.show_approach,
         show_normal=args.show_normal,
         show_frame=args.show_frame,
+        show_inner_points=args.show_inner_points,
+        show_contacts=args.show_contacts,
     )
     show_geometries(
         geometries,
