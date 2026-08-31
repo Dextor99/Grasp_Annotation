@@ -1,5 +1,8 @@
 import unittest
+import json
 from dataclasses import FrozenInstanceError
+
+import numpy as np
 
 
 class GraspGenerationConfigTests(unittest.TestCase):
@@ -34,6 +37,10 @@ class GraspGenerationConfigTests(unittest.TestCase):
             GraspGenerationConfig(rotation_max_deg=179.5)
         with self.assertRaises(ValueError):
             GraspGenerationConfig(num_approach_azimuth=True)
+
+        numpy_config = GraspGenerationConfig(cone_angle_deg=np.float32(15.0))
+        json.dumps(numpy_config.to_dict(), allow_nan=False)
+        self.assertIs(type(numpy_config.to_dict()["cone_angle_deg"]), float)
 
 
 if __name__ == "__main__":

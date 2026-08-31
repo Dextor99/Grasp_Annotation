@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
+from numbers import Integral, Real
 
 
 @dataclass(frozen=True)
@@ -56,4 +57,14 @@ class GraspGenerationConfig:
         return 1 if self.mode != "cone" else self.num_approach_azimuth + 1
 
     def to_dict(self):
-        return asdict(self)
+        return {key: _json_primitive(value) for key, value in asdict(self).items()}
+
+
+def _json_primitive(value):
+    if isinstance(value, bool) or value is None or isinstance(value, str):
+        return value
+    if isinstance(value, Integral):
+        return int(value)
+    if isinstance(value, Real):
+        return float(value)
+    raise TypeError(f"unsupported configuration value: {type(value).__name__}")
