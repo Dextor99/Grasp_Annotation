@@ -52,6 +52,9 @@ class GraspExportTests(unittest.TestCase):
                 self.assertEqual(arrays["scores_total"].shape, (1,))
                 self.assertEqual(arrays["search_openings_mm"].shape, (1,))
                 self.assertEqual(arrays["grasp_widths_mm"].shape, (1,))
+                self.assertEqual(arrays["support_spans_mm"].shape, (1,))
+                self.assertEqual(arrays["closure_center_offsets_mm"].shape, (1,))
+                self.assertEqual(arrays["effective_margins_mm"].shape, (1,))
                 self.assertTrue(all(np.issubdtype(array.dtype, np.number) for array in arrays.values()))
 
             self.assertEqual(len(grasps), 1)

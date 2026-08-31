@@ -9,7 +9,7 @@ from time import perf_counter
 from grasp_config import GraspGenerationConfig
 from grasp_determinism import configure_determinism
 from grasp_merge import merge_grasp_candidates
-from grasp_refinement import refine_grasp_closures
+from grasp_refinement import refine_grasp_closures, validate_refined_grasp_closures
 from grasp_schema import normalize_grasp_record
 from grasp_scoring import score_grasp_candidates
 from multi_view_grasp import generate_multi_view_grasps
@@ -57,15 +57,24 @@ def run_grasp_annotation(object_path, config=None):
     timings["refinement_s"] = perf_counter() - stage_start
 
     stage_start = perf_counter()
-    unique_candidates = merge_grasp_candidates(
+    validated_candidates = validate_refined_grasp_closures(
         refined_candidates,
+        point_cloud=object_data.cloud_down,
+        T_object_world=object_data.T_object_world,
+        threshold_mm=config.collision_threshold_mm,
+    )
+    timings["closure_validation_s"] = perf_counter() - stage_start
+
+    stage_start = perf_counter()
+    unique_candidates = merge_grasp_candidates(
+        validated_candidates,
         translation_threshold_mm=config.translation_merge_mm,
         rotation_threshold_deg=config.rotation_merge_deg,
     )
     timings["merge_s"] = perf_counter() - stage_start
 
     stage_start = perf_counter()
-    raw_records = [normalize_grasp_record(grasp) for grasp in refined_candidates]
+    raw_records = [normalize_grasp_record(grasp) for grasp in validated_candidates]
     unique_records = [normalize_grasp_record(grasp) for grasp in unique_candidates]
     timings["normalization_s"] = perf_counter() - stage_start
     timings["total_s"] = perf_counter() - total_start
@@ -82,6 +91,11 @@ def run_grasp_annotation(object_path, config=None):
         "point_count": int(len(object_data.points)),
         "raw_grasp_count": raw_count,
         "unique_grasp_count": unique_count,
+        "closure_validation": {
+            "input_count": len(refined_candidates),
+            "valid_count": len(validated_candidates),
+            "rejected_count": len(refined_candidates) - len(validated_candidates),
+        },
         "merge_reduction_ratio": merge_reduction_ratio,
         "config": config.to_dict(),
         "timings": timings,

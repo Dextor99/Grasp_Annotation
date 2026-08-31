@@ -94,19 +94,31 @@ def normalize_grasp_record(grasp):
         if field not in grasp:
             raise ValueError(f"missing required grasp field: {field}")
 
+    search_opening_mm = _finite_float(
+        grasp.get("search_opening_mm", grasp.get("opening")),
+        "search_opening_mm",
+    )
+    grasp_width_mm = _finite_float(
+        grasp.get("grasp_width_mm", grasp.get("opening")),
+        "grasp_width_mm",
+    )
+    support_span_mm = _finite_float(
+        grasp.get("support_span_mm", grasp.get("score_y_diff", 0.0)),
+        "support_span_mm",
+    )
+    if grasp_width_mm > search_opening_mm + 1e-9:
+        raise ValueError("grasp_width_mm must not exceed search_opening_mm")
+    if support_span_mm > search_opening_mm + 1e-9:
+        raise ValueError("support_span_mm must not exceed search_opening_mm")
+
     record = {
         "translation": transform[:3, 3].astype(float).tolist(),
         "rotation_matrix": rotation.astype(float).tolist(),
         "quaternion_xyzw": Rotation.from_matrix(rotation).as_quat().astype(float).tolist(),
         "opening_mm": _finite_float(grasp.get("opening"), "opening"),
-        "search_opening_mm": _finite_float(
-            grasp.get("search_opening_mm", grasp.get("opening")),
-            "search_opening_mm",
-        ),
-        "grasp_width_mm": _finite_float(
-            grasp.get("grasp_width_mm", grasp.get("opening")),
-            "grasp_width_mm",
-        ),
+        "search_opening_mm": search_opening_mm,
+        "grasp_width_mm": grasp_width_mm,
+        "support_span_mm": support_span_mm,
         "closure_center_offset_mm": _finite_float(
             grasp.get("closure_center_offset_mm", 0.0),
             "closure_center_offset_mm",
@@ -115,7 +127,17 @@ def normalize_grasp_record(grasp):
             grasp.get("closure_margin_mm", 0.0),
             "closure_margin_mm",
         ),
+        "requested_margin_mm": _finite_float(
+            grasp.get("requested_margin_mm", grasp.get("closure_margin_mm", 0.0)),
+            "requested_margin_mm",
+        ),
+        "effective_margin_mm": _finite_float(
+            grasp.get("effective_margin_mm", grasp.get("closure_margin_mm", 0.0)),
+            "effective_margin_mm",
+        ),
         "closure_refined": bool(grasp.get("closure_refined", False)),
+        "closure_geometry_valid": bool(grasp.get("closure_geometry_valid", True)),
+        "closure_pose_valid": bool(grasp.get("closure_pose_valid", True)),
         "depth_mm": _finite_float(grasp.get("depth"), "depth"),
         "score_total": _finite_float(grasp.get("score_total"), "score_total"),
         "view_id": _source_int(grasp["view_id"], "view_id"),
@@ -141,4 +163,16 @@ def normalize_grasp_record(grasp):
             if isinstance(value, Real) and np.isfinite(float(value))
             else None
         )
+    before_y0 = grasp.get("score_y0_diff_before_refinement", grasp.get("score_y0_diff"))
+    record["score_y0_diff_before_refinement"] = (
+        float(before_y0)
+        if isinstance(before_y0, Real) and np.isfinite(float(before_y0))
+        else None
+    )
+    refined_y0 = grasp.get("score_y0_diff_refined")
+    record["score_y0_diff_refined"] = (
+        float(refined_y0)
+        if isinstance(refined_y0, Real) and np.isfinite(float(refined_y0))
+        else None
+    )
     return record

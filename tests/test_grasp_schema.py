@@ -45,7 +45,13 @@ class GraspSchemaTests(unittest.TestCase):
         self.assertEqual(record["opening_mm"], 45.0)
         self.assertEqual(record["search_opening_mm"], 45.0)
         self.assertEqual(record["grasp_width_mm"], 45.0)
+        self.assertEqual(record["support_span_mm"], 0.0)
+        self.assertEqual(record["requested_margin_mm"], 0.0)
+        self.assertEqual(record["effective_margin_mm"], 0.0)
         self.assertFalse(record["closure_refined"])
+        self.assertTrue(record["closure_geometry_valid"])
+        self.assertTrue(record["closure_pose_valid"])
+        self.assertIsNone(record["score_y0_diff_refined"])
         self.assertEqual(record["depth_mm"], 20.0)
         self.assertEqual(record["score_force_closure"], 0.8)
 
@@ -54,6 +60,15 @@ class GraspSchemaTests(unittest.TestCase):
 
         grasp = self._grasp()
         grasp["score_total"] = np.nan
+        with self.assertRaises(ValueError):
+            normalize_grasp_record(grasp)
+
+    def test_rejects_final_width_wider_than_search_opening(self):
+        from grasp_schema import normalize_grasp_record
+
+        grasp = self._grasp()
+        grasp["search_opening_mm"] = 40.0
+        grasp["grasp_width_mm"] = 45.0
         with self.assertRaises(ValueError):
             normalize_grasp_record(grasp)
 
