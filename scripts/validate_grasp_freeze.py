@@ -51,14 +51,25 @@ def run_validation_case(case, model_directory, output_directory, repeats=3, top_
     case_start = perf_counter()
     reference = None
     repeat_summaries = []
+    failures = []
     for repeat_id in range(repeats):
         result = run_grasp_annotation(model_path, config=config)
-        assert_annotation_invariants(result)
+        try:
+            assert_annotation_invariants(result)
+        except Exception as error:
+            failures.append(
+                f"repeat {repeat_id} invariants: {type(error).__name__}: {error}"
+            )
         if reference is None:
             reference = result
             export_grasp_annotations(reference, Path(output_directory) / case.label)
         else:
-            assert_repeated_results_equal(reference, result, top_k=top_k)
+            try:
+                assert_repeated_results_equal(reference, result, top_k=top_k)
+            except Exception as error:
+                failures.append(
+                    f"repeat {repeat_id} reproducibility: {type(error).__name__}: {error}"
+                )
         repeat_summaries.append(
             {
                 "repeat_id": repeat_id,
@@ -73,9 +84,10 @@ def run_validation_case(case, model_directory, output_directory, repeats=3, top_
         "views": case.views,
         "anchors": case.anchors,
         "approaches_per_anchor": config.num_approach_directions,
-        "status": "passed",
+        "status": "failed" if failures else "passed",
         "wall_time_s": perf_counter() - case_start,
         "repeats": repeat_summaries,
+        "failures": failures,
     }
 
 
@@ -112,6 +124,8 @@ def main(arguments=None):
                 repeats=args.repeats,
                 top_k=args.top_k,
             )
+            if case_summary["status"] != "passed":
+                summary["status"] = "failed"
         except Exception as error:
             case_summary = {
                 "label": case.label,

@@ -1,4 +1,7 @@
 import unittest
+import tempfile
+from pathlib import Path
+from unittest.mock import patch
 
 import numpy as np
 
@@ -78,6 +81,35 @@ class FinalizationAcceptanceTests(unittest.TestCase):
         invalid.unique_grasps[0]["rotation_matrix"][0][0] = 2.0
         with self.assertRaises(AcceptanceFailure):
             assert_annotation_invariants(invalid)
+
+    def test_real_case_runner_completes_repeats_before_reporting_gate_failure(self):
+        from scripts.validate_grasp_freeze import ValidationCase, run_validation_case
+
+        invalid = self._result()
+        invalid.unique_grasps = list(invalid.raw_grasps)
+        invalid.meta.update(
+            unique_grasp_count=2,
+            timings={"total_s": 0.1},
+        )
+        case = ValidationCase("fixture", "fixture.ply", 3, 2)
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            model = Path(temporary_directory) / "fixture.ply"
+            model.write_text("fixture", encoding="utf-8")
+            with patch(
+                "scripts.validate_grasp_freeze.run_grasp_annotation",
+                return_value=invalid,
+            ) as run, patch("scripts.validate_grasp_freeze.export_grasp_annotations"):
+                summary = run_validation_case(
+                    case,
+                    temporary_directory,
+                    temporary_directory,
+                    repeats=2,
+                )
+
+        self.assertEqual(run.call_count, 2)
+        self.assertEqual(summary["status"], "failed")
+        self.assertEqual(len(summary["repeats"]), 2)
+        self.assertTrue(summary["failures"])
 
 
 if __name__ == "__main__":
