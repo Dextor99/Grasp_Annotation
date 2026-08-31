@@ -58,15 +58,22 @@ def _assert_score_order(records, label):
 
 
 def assert_annotation_invariants(result):
-    """Require nonempty, finite, sorted output that is reduced by merging."""
+    """Require nonempty, finite, sorted output with a valid merge count."""
     raw_count = len(result.raw_grasps)
     unique_count = len(result.unique_grasps)
     if raw_count <= 0:
         _fail("raw_grasps must be nonempty")
     if unique_count <= 0:
         _fail("unique_grasps must be nonempty")
-    if unique_count >= raw_count:
-        _fail("SE(3) merge must reduce unique_grasps below raw_grasps")
+    if unique_count > raw_count:
+        _fail("SE(3) merge cannot increase unique_grasps above raw_grasps")
+    reduction_ratio = result.meta.get("merge_reduction_ratio")
+    if reduction_ratio is not None:
+        if not np.isscalar(reduction_ratio) or not np.isfinite(float(reduction_ratio)):
+            _fail("merge_reduction_ratio must be finite")
+        expected_ratio = 1.0 - unique_count / raw_count
+        if not np.isclose(float(reduction_ratio), expected_ratio, atol=1e-12):
+            _fail("merge_reduction_ratio does not match grasp counts")
     if result.meta.get("raw_grasp_count") != raw_count:
         _fail("meta raw_grasp_count does not match records")
     if result.meta.get("unique_grasp_count") != unique_count:

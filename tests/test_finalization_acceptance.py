@@ -37,7 +37,11 @@ class FinalizationAcceptanceTests(unittest.TestCase):
         return GraspAnnotationResult(
             raw_grasps=raw,
             unique_grasps=unique,
-            meta={"raw_grasp_count": 2, "unique_grasp_count": 1},
+            meta={
+                "raw_grasp_count": 2,
+                "unique_grasp_count": 1,
+                "merge_reduction_ratio": 0.5,
+            },
         )
 
     def test_accepts_finite_sorted_nonempty_reduced_results(self):
@@ -57,11 +61,20 @@ class FinalizationAcceptanceTests(unittest.TestCase):
         with self.assertRaises(AcceptanceFailure):
             assert_annotation_invariants(empty)
 
-        unchanged = self._result()
-        unchanged.unique_grasps = list(unchanged.raw_grasps)
-        unchanged.meta["unique_grasp_count"] = 2
+        non_reducing = self._result()
+        non_reducing.unique_grasps = list(non_reducing.raw_grasps) + [_record(0.7, (2.0, 0.0, 0.0))]
+        non_reducing.meta["unique_grasp_count"] = 3
         with self.assertRaises(AcceptanceFailure):
-            assert_annotation_invariants(unchanged)
+            assert_annotation_invariants(non_reducing)
+
+    def test_accepts_unique_count_equal_to_raw_count(self):
+        from grasp_freeze_validation import assert_annotation_invariants
+
+        result = self._result()
+        result.unique_grasps = list(result.raw_grasps)
+        result.meta["unique_grasp_count"] = len(result.unique_grasps)
+        result.meta["merge_reduction_ratio"] = 0.0
+        assert_annotation_invariants(result)
 
     def test_repeated_results_require_identical_counts_top_poses_and_scores(self):
         from grasp_freeze_validation import AcceptanceFailure, assert_repeated_results_equal

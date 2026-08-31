@@ -62,13 +62,19 @@ def run_grasp_annotation(object_path, config=None):
     timings["normalization_s"] = perf_counter() - stage_start
     timings["total_s"] = perf_counter() - total_start
 
+    raw_count = len(raw_records)
+    unique_count = len(unique_records)
+    merge_reduction_ratio = (
+        1.0 - unique_count / raw_count if raw_count else 0.0
+    )
     meta = {
         "object": str(Path(object_path)),
         "units": "mm",
         "input_scale_to_mm": float(object_data.scale),
         "point_count": int(len(object_data.points)),
-        "raw_grasp_count": len(raw_records),
-        "unique_grasp_count": len(unique_records),
+        "raw_grasp_count": raw_count,
+        "unique_grasp_count": unique_count,
+        "merge_reduction_ratio": merge_reduction_ratio,
         "config": config.to_dict(),
         "timings": timings,
     }

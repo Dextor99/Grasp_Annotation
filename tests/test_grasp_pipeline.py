@@ -44,6 +44,7 @@ class GraspPipelineTests(unittest.TestCase):
         self.assertEqual(result.unique_grasps, [{"id": 1}])
         self.assertEqual(result.meta["raw_grasp_count"], 2)
         self.assertEqual(result.meta["unique_grasp_count"], 1)
+        self.assertEqual(result.meta["merge_reduction_ratio"], 0.5)
         self.assertEqual(result.meta["units"], "mm")
         self.assertEqual(result.meta["config"]["mode"], "cone")
         self.assertIs(generate.call_args.kwargs["object_data"], object_data)

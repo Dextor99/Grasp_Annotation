@@ -75,6 +75,7 @@ def run_validation_case(case, model_directory, output_directory, repeats=3, top_
                 "repeat_id": repeat_id,
                 "raw_grasp_count": len(result.raw_grasps),
                 "unique_grasp_count": len(result.unique_grasps),
+                "merge_reduction_ratio": result.meta.get("merge_reduction_ratio"),
                 "total_s": result.meta["timings"]["total_s"],
             }
         )
