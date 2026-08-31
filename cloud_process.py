@@ -8,6 +8,17 @@ from profiling import active_profiler, profiled
 from model_scale import get_model_scale
 
 
+def normal_search_radius(voxel_size, factor=2.5):
+    """Return a scale-aware normal neighborhood radius in model units."""
+    voxel_size = float(voxel_size)
+    factor = float(factor)
+    if not np.isfinite(voxel_size) or voxel_size <= 0.0:
+        raise ValueError("voxel_size must be a positive finite number")
+    if not np.isfinite(factor) or factor <= 0.0:
+        raise ValueError("factor must be a positive finite number")
+    return voxel_size * factor
+
+
 def estimate_normals(pcd, radius=0.05, max_nn=30):
     pcd.estimate_normals(
         search_param=o3d.geometry.KDTreeSearchParamHybrid(radius=radius, max_nn=max_nn)
@@ -151,7 +162,15 @@ def frames_process(ply_path,
     print(f"Downsampled pts = {len(down.points)}")
 
     # 3. 法线 & KD 树
-    profiler.measure("cloud.estimate_normals", estimate_normals, down)
+    normal_radius = normal_search_radius(voxel_size)
+    print(f"Normal search radius = {normal_radius:.6f}")
+    profiler.measure(
+        "cloud.estimate_normals",
+        estimate_normals,
+        down,
+        radius=normal_radius,
+        max_nn=30,
+    )
     profiler.measure("cloud.build_kdtree", build_kdtree, down)
 
     # 3.5 建立物体坐标系：基于 OBB 最小包围盒
