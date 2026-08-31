@@ -812,6 +812,7 @@ def grasp_detect(
     frame_override=None,
     enable_visualization=True,
     contact_center_override=None,
+    generation_config=None,
 ):
     #下采样的物体点云，AABB包围框中心坐标，物体坐标系，采样点，采样平面坐标系集合，世界坐标系，采样平面，采样平面坐标系物理模型，物体到世界转换矩阵
     profiler = active_profiler()
@@ -836,7 +837,13 @@ def grasp_detect(
     object_radius = sample_radius - 100.0
     if object_radius <= 0 or not np.isfinite(object_radius):
         object_radius = float(np.max(np.linalg.norm(pts - obj_center, axis=1)))
-    depths = generate_depth_samples(object_radius, num_depth=16, max_ratio=1.2)
+    depth_samples = getattr(generation_config, "depth_samples", 16)
+    depth_max_ratio = getattr(generation_config, "depth_max_ratio", 1.2)
+    depths = generate_depth_samples(
+        object_radius,
+        num_depth=depth_samples,
+        max_ratio=depth_max_ratio,
+    )
     profiler.count("depth.object_radius_mm", round(object_radius, 4))
     profiler.count("depth.max_sample_mm", round(float(depths[-1]), 4))
     profiler.count("depth.sample_count", len(depths))
@@ -888,10 +895,10 @@ def grasp_detect(
         base_gripper=custom_gripper['model'],
         T_object_world=T_object_world,
         T_gripper_object=T_gripper_object,
-        step_deg=15,
-        max_deg=179,
-        step_open=15,
-        max_open=150,
+        step_deg=getattr(generation_config, "rotation_step_deg", 15),
+        max_deg=getattr(generation_config, "rotation_max_deg", 179),
+        step_open=getattr(generation_config, "opening_step_mm", 15),
+        max_open=getattr(generation_config, "opening_max_mm", 150),
     )
     profiler.count("candidates.gripper_variants", len(gripper_variants))
     # 合并所有夹爪网格
@@ -963,7 +970,7 @@ def grasp_detect(
         filter_collision_free_grippers_first_opening,
         rule_valid_candidates,
         point_cloud=cloud_down,
-        threshold=3.0,
+        threshold=getattr(generation_config, "collision_threshold_mm", 3.0),
     )
     profiler.count("candidates.collision_free", len(non_colliding_grippers))
     record_candidate_funnel(non_colliding_grippers, "collision_free")
@@ -1014,7 +1021,13 @@ def grasp_detect(
 #         candidate_grippers_meshes.extend(k['meshes'])
 
 ##########################OBB包围盒检测内部点云
-    filtered = filter_grippers_with_pointcloud_intersection(min_opening_grippers, T_object_world, cloud_down, min_points_threshold=5,normals_world_all=normals_world_all)
+    filtered = filter_grippers_with_pointcloud_intersection(
+        min_opening_grippers,
+        T_object_world,
+        cloud_down,
+        min_points_threshold=getattr(generation_config, "min_intersection_points", 5),
+        normals_world_all=normals_world_all,
+    )
     profiler.count("candidates.final_intersection", len(filtered))
     record_candidate_funnel(filtered, "final")
     candidate_grippers_meshes = []
@@ -1121,7 +1134,12 @@ def grasp_detect_from_surface(
     frame["origin"] = surface_center + view * 100.0
     frame["transform"] = frame["transform"].copy()
     frame["transform"][:3, 3] = frame["origin"]
-    grasps = _grasp_detect_from_frame(object_data, frame, enable_visualization)
+    grasps = _grasp_detect_from_frame(
+        object_data,
+        frame,
+        enable_visualization,
+        generation_config=config,
+    )
     for grasp in grasps:
         grasp["surface_point_count"] = int(len(surface_points))
         grasp["view_direction"] = view.tolist()
@@ -1133,6 +1151,7 @@ def _grasp_detect_from_frame(
     frame,
     enable_visualization=False,
     contact_center_override=None,
+    generation_config=None,
 ):
     """Delegate a prepared local frame to the shared legacy generation core."""
     _, grasps, _, _, _ = grasp_detect(
@@ -1142,6 +1161,7 @@ def _grasp_detect_from_frame(
         frame_override=frame,
         enable_visualization=enable_visualization,
         contact_center_override=contact_center_override,
+        generation_config=generation_config,
     )
     return grasps
 
@@ -1153,6 +1173,7 @@ def grasp_detect_from_anchor_approach(
     anchor_normal=None,
     metadata=None,
     enable_visualization=False,
+    config=None,
 ):
     """Generate grasps with the anchor as the explicit depth-zero reference."""
     anchor = np.asarray(anchor_point, dtype=float)
@@ -1188,6 +1209,7 @@ def grasp_detect_from_anchor_approach(
         frame,
         enable_visualization,
         contact_center_override=anchor,
+        generation_config=config,
     )
     grasp_metadata = dict(metadata or {})
     grasp_metadata.update(

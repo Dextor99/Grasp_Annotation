@@ -84,6 +84,27 @@ class ScoredMultiViewAdapterTests(unittest.TestCase):
         score.assert_called_once_with(object_data, [{"id": 1}])
         self.assertEqual(result[0]["score_total"], 0.4)
 
+    def test_configures_determinism_before_preparing_object(self):
+        from grasp_config import GraspGenerationConfig
+        from multi_view_grasp import generate_scored_multi_view_grasps
+
+        events = []
+        object_data = SimpleNamespace(cloud_down=object())
+        config = GraspGenerationConfig(random_seed=41)
+        with patch(
+            "multi_view_grasp.configure_determinism",
+            side_effect=lambda enabled, seed: events.append(("seed", enabled, seed)),
+        ), patch(
+            "multi_view_grasp.prepare_object",
+            side_effect=lambda path: events.append(("prepare", path)) or object_data,
+        ), patch("multi_view_grasp.generate_multi_view_grasps", return_value=[]), patch(
+            "multi_view_grasp.score_grasp_candidates", return_value=[]
+        ):
+            generate_scored_multi_view_grasps("object.ply", config=config)
+
+        self.assertEqual(events[0], ("seed", True, 41))
+        self.assertEqual(events[1], ("prepare", "object.ply"))
+
 
 if __name__ == "__main__":
     unittest.main()

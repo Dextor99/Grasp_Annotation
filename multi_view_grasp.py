@@ -6,6 +6,7 @@ import numpy as np
 
 from approach_sampling import sample_normal_guided_approaches
 from grasp_detect import grasp_detect_from_anchor_approach, grasp_detect_from_surface
+from grasp_determinism import configure_determinism
 from grasp_scoring import score_grasp_candidates
 from object_preprocess import prepare_object
 from surface_anchor import build_surface_anchors
@@ -24,8 +25,18 @@ def generate_multi_view_grasps(
     normal_knn=30,
     cone_angle_deg=15.0,
     num_approach_azimuth=4,
+    config=None,
 ):
     """Generate global, local-normal, or local-cone multi-view grasps."""
+    if config is not None:
+        num_views = config.num_views
+        visibility_threshold = config.visibility_threshold
+        enable_visualization = config.enable_visualization
+        mode = config.mode
+        num_anchors_per_view = config.anchors_per_view
+        normal_knn = config.normal_knn
+        cone_angle_deg = config.cone_angle_deg
+        num_approach_azimuth = config.num_approach_azimuth
     if mode not in {"global", "normal", "cone"}:
         raise ValueError("mode must be 'global', 'normal', or 'cone'")
     object_data = object_data or prepare_object(ply_path)
@@ -56,6 +67,7 @@ def generate_multi_view_grasps(
                 surface_points,
                 surface_normals,
                 view,
+                config=config,
                 enable_visualization=enable_visualization,
             )
             metadata = {
@@ -105,6 +117,7 @@ def generate_multi_view_grasps(
                         approach_direction=approach.direction,
                         metadata=metadata,
                         enable_visualization=enable_visualization,
+                        config=config,
                     )
                     for grasp in grasps:
                         grasp.update(metadata)
@@ -118,6 +131,11 @@ def generate_multi_view_grasps(
 
 def generate_scored_multi_view_grasps(ply_path, object_data=None, **generation_kwargs):
     """Generate candidates, then apply the existing V3 scores and ranking."""
+    config = generation_kwargs.get("config")
+    configure_determinism(
+        getattr(config, "deterministic", True),
+        getattr(config, "random_seed", 0),
+    )
     prepared_object = object_data or prepare_object(ply_path)
     grasps = generate_multi_view_grasps(
         ply_path,

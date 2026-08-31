@@ -5,6 +5,7 @@ from unittest.mock import patch
 import numpy as np
 
 from multi_view_grasp import generate_multi_view_grasps
+from grasp_config import GraspGenerationConfig
 
 
 class MultiViewGraspTests(unittest.TestCase):
@@ -70,6 +71,18 @@ class MultiViewGraspTests(unittest.TestCase):
         ):
             generate_multi_view_grasps("object.ply", num_views=3, mode="global")
         prepare.assert_called_once_with("object.ply")
+
+    def test_central_config_drives_generation_and_reaches_detector(self):
+        config = GraspGenerationConfig(num_views=1, anchors_per_view=1)
+        with patch("multi_view_grasp.grasp_detect_from_anchor_approach", return_value=[]) as detect:
+            generate_multi_view_grasps(
+                "object.ply",
+                object_data=self.object_data,
+                config=config,
+            )
+
+        self.assertEqual(detect.call_count, 5)
+        self.assertTrue(all(call.kwargs["config"] is config for call in detect.call_args_list))
 
 
 if __name__ == "__main__":
