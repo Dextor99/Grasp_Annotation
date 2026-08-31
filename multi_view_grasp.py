@@ -6,6 +6,7 @@ import numpy as np
 
 from approach_sampling import sample_normal_guided_approaches
 from grasp_detect import grasp_detect_from_anchor_approach, grasp_detect_from_surface
+from grasp_scoring import score_grasp_candidates
 from object_preprocess import prepare_object
 from surface_anchor import build_surface_anchors
 from surface_visibility import select_front_facing_surface
@@ -113,3 +114,14 @@ def generate_multi_view_grasps(
         print(f"View {view_id}: surface {len(surface_points)} -> grasps {len(view_grasps)}")
     print(f"Total raw grasps: {len(all_grasps)}")
     return all_grasps
+
+
+def generate_scored_multi_view_grasps(ply_path, object_data=None, **generation_kwargs):
+    """Generate candidates, then apply the existing V3 scores and ranking."""
+    prepared_object = object_data or prepare_object(ply_path)
+    grasps = generate_multi_view_grasps(
+        ply_path,
+        object_data=prepared_object,
+        **generation_kwargs,
+    )
+    return score_grasp_candidates(prepared_object, grasps)
