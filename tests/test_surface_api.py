@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 import numpy as np
 
-from grasp_detect import grasp_detect_from_surface
+from grasp_detect import grasp_detect_from_anchor_approach, grasp_detect_from_surface
 
 
 class SurfaceApiTests(unittest.TestCase):
@@ -33,6 +33,36 @@ class SurfaceApiTests(unittest.TestCase):
             grasp_detect_from_surface(object_data, [[-1, 0, 0]], surface_normals, [-1, 0, 0])
 
         self.assertFalse(np.allclose(captured_origins[0], captured_origins[1]))
+
+    def test_anchor_approach_builds_expected_frame_and_metadata(self):
+        object_data = SimpleNamespace(ply_path="object.ply")
+        captured_frames = []
+        captured_objects = []
+        captured_contacts = []
+
+        def capture(*args, **kwargs):
+            captured_frames.append(kwargs["frame_override"])
+            captured_objects.append(kwargs["object_data"])
+            captured_contacts.append(kwargs["contact_center_override"])
+            return None, [{"id": 7}], [], [], []
+
+        with patch("grasp_detect.grasp_detect", side_effect=capture):
+            grasps = grasp_detect_from_anchor_approach(
+                object_data,
+                anchor_point=[1, 2, 3],
+                approach_direction=[0, 0, -1],
+                anchor_normal=[0, 0, 1],
+                approach_offset_mm=100,
+                metadata={"anchor_id": 2, "approach_id": 4},
+            )
+
+        np.testing.assert_allclose(captured_frames[0]["origin"], [1, 2, 103])
+        np.testing.assert_allclose(captured_frames[0]["z_axis"], [0, 0, -1])
+        self.assertIs(captured_objects[0], object_data)
+        np.testing.assert_allclose(captured_contacts[0], [1, 2, 3])
+        self.assertEqual(grasps[0]["anchor_id"], 2)
+        self.assertEqual(grasps[0]["approach_id"], 4)
+        np.testing.assert_allclose(grasps[0]["anchor_point"], [1, 2, 3])
 
 
 if __name__ == "__main__":

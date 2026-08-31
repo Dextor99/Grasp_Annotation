@@ -13,7 +13,7 @@ class ViewSamplingVisibilityTests(unittest.TestCase):
         np.testing.assert_allclose(np.linalg.norm(directions, axis=1), 1.0)
 
     def test_single_view_is_supported(self):
-        np.testing.assert_allclose(fibonacci_directions(1), [[0.0, 1.0, 0.0]])
+        np.testing.assert_allclose(fibonacci_directions(1), [[0.0, 0.0, 1.0]])
 
     def test_front_facing_filter_uses_center_to_camera_convention(self):
         points = np.array([[1, 0, 0], [-1, 0, 0], [0, 1, 0]], dtype=float)

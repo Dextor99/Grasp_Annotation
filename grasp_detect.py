@@ -727,7 +727,14 @@ def visualize_gripper_origins_from_object_frame(moved_grippers, T_object_world, 
     return spheres
 
 @profiled("detect.grasp_detect.total")
-def grasp_detect(ply_path, i, object_data=None, frame_override=None, enable_visualization=True):
+def grasp_detect(
+    ply_path,
+    i,
+    object_data=None,
+    frame_override=None,
+    enable_visualization=True,
+    contact_center_override=None,
+):
     #下采样的物体点云，AABB包围框中心坐标，物体坐标系，采样点，采样平面坐标系集合，世界坐标系，采样平面，采样平面坐标系物理模型，物体到世界转换矩阵
     profiler = active_profiler()
     vis_list = []
@@ -767,6 +774,12 @@ def grasp_detect(ply_path, i, object_data=None, frame_override=None, enable_visu
         offset=40.0,
         height=1.0,
     )
+    if contact_center_override is not None:
+        contact_center = np.asarray(contact_center_override, dtype=float)
+        if contact_center.shape != (3,) or not np.all(np.isfinite(contact_center)):
+            raise ValueError("contact_center_override must be a finite 3-vector")
+        center0 = contact_center
+        center1 = center0 + frame["z_axis"] * 40.0
 
 ##########################创建了中间开口为0 的夹爪
     # 创建自定义夹爪
@@ -1039,16 +1052,91 @@ def grasp_detect_from_surface(
     frame["origin"] = surface_center + view * 100.0
     frame["transform"] = frame["transform"].copy()
     frame["transform"][:3, 3] = frame["origin"]
+    grasps = _grasp_detect_from_frame(object_data, frame, enable_visualization)
+    for grasp in grasps:
+        grasp["surface_point_count"] = int(len(surface_points))
+        grasp["view_direction"] = view.tolist()
+    return grasps
+
+
+def _grasp_detect_from_frame(
+    object_data,
+    frame,
+    enable_visualization=False,
+    contact_center_override=None,
+):
+    """Delegate a prepared local frame to the shared legacy generation core."""
     _, grasps, _, _, _ = grasp_detect(
         object_data.ply_path,
         1,
         object_data=object_data,
         frame_override=frame,
         enable_visualization=enable_visualization,
+        contact_center_override=contact_center_override,
     )
+    return grasps
+
+
+def grasp_detect_from_anchor_approach(
+    object_data,
+    anchor_point,
+    approach_direction,
+    anchor_normal=None,
+    approach_offset_mm=100.0,
+    metadata=None,
+    enable_visualization=False,
+):
+    """Generate grasps from one surface anchor and one outside-to-object approach."""
+    anchor = np.asarray(anchor_point, dtype=float)
+    approach = np.asarray(approach_direction, dtype=float)
+    if anchor.shape != (3,) or not np.all(np.isfinite(anchor)):
+        raise ValueError("anchor_point must be a finite 3-vector")
+    approach_length = np.linalg.norm(approach)
+    if approach.shape != (3,) or not np.isfinite(approach_length) or approach_length <= 1e-12:
+        raise ValueError("approach_direction must be a non-zero finite 3-vector")
+    approach = approach / approach_length
+    approach_offset_mm = float(approach_offset_mm)
+    if not np.isfinite(approach_offset_mm) or approach_offset_mm <= 0.0:
+        raise ValueError("approach_offset_mm must be a positive finite number")
+
+    reference = np.array([0.0, 0.0, 1.0])
+    if abs(float(reference @ approach)) > 0.9:
+        reference = np.array([0.0, 1.0, 0.0])
+    x_axis = np.cross(reference, approach)
+    x_axis /= np.linalg.norm(x_axis)
+    y_axis = np.cross(approach, x_axis)
+    y_axis /= np.linalg.norm(y_axis)
+    origin = anchor - approach * approach_offset_mm
+    transform = np.eye(4)
+    transform[:3, :3] = np.column_stack((x_axis, y_axis, approach))
+    transform[:3, 3] = origin
+    frame = {
+        "id": -1,
+        "origin": origin,
+        "x_axis": x_axis,
+        "y_axis": y_axis,
+        "z_axis": approach,
+        "transform": transform,
+    }
+
+    grasps = _grasp_detect_from_frame(
+        object_data,
+        frame,
+        enable_visualization,
+        contact_center_override=anchor,
+    )
+    grasp_metadata = dict(metadata or {})
+    grasp_metadata.update(
+        anchor_point=anchor.tolist(),
+        approach_direction=approach.tolist(),
+    )
+    if anchor_normal is not None:
+        normal = np.asarray(anchor_normal, dtype=float)
+        if normal.shape != (3,) or not np.all(np.isfinite(normal)):
+            raise ValueError("anchor_normal must be a finite 3-vector")
+        grasp_metadata["anchor_normal"] = normal.tolist()
     for grasp in grasps:
-        grasp["surface_point_count"] = int(len(surface_points))
-        grasp["view_direction"] = view.tolist()
+        grasp.update(grasp_metadata)
     return grasps
 
 # if __name__ == "__main__":
