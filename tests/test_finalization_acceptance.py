@@ -95,6 +95,30 @@ class FinalizationAcceptanceTests(unittest.TestCase):
         with self.assertRaises(AcceptanceFailure):
             assert_annotation_invariants(invalid)
 
+    def test_rejects_final_width_larger_than_search_aperture(self):
+        from grasp_freeze_validation import AcceptanceFailure, assert_annotation_invariants
+
+        invalid = self._result()
+        invalid.raw_grasps[0]["search_opening_mm"] = 40.0
+        invalid.raw_grasps[0]["grasp_width_mm"] = 45.0
+        with self.assertRaises(AcceptanceFailure):
+            assert_annotation_invariants(invalid)
+
+    def test_acceptance_reports_explicit_closure_counts_when_present(self):
+        from grasp_freeze_validation import assert_annotation_invariants
+
+        result = self._result()
+        result.meta["candidate_counts"] = {
+            "generated_candidate_count": 2,
+            "scored_candidate_count": 2,
+            "refinement_input_count": 2,
+            "closure_geometry_rejected": 0,
+            "closure_pose_collision_rejected": 0,
+            "closure_valid_count": 2,
+            "unique_grasp_count": 1,
+        }
+        assert_annotation_invariants(result)
+
     def test_real_case_runner_completes_repeats_before_reporting_gate_failure(self):
         from scripts.validate_grasp_freeze import ValidationCase, run_validation_case
 

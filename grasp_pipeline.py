@@ -65,6 +65,14 @@ def run_grasp_annotation(object_path, config=None):
     )
     timings["closure_validation_s"] = perf_counter() - stage_start
 
+    closure_geometry_rejected = sum(
+        not candidate.get("closure_geometry_valid", True)
+        for candidate in refined_candidates
+    )
+    closure_pose_collision_rejected = (
+        len(refined_candidates) - closure_geometry_rejected - len(validated_candidates)
+    )
+
     stage_start = perf_counter()
     unique_candidates = merge_grasp_candidates(
         validated_candidates,
@@ -81,6 +89,15 @@ def run_grasp_annotation(object_path, config=None):
 
     raw_count = len(raw_records)
     unique_count = len(unique_records)
+    candidate_counts = {
+        "generated_candidate_count": len(raw_candidates),
+        "scored_candidate_count": len(scored_candidates),
+        "refinement_input_count": len(refined_candidates),
+        "closure_geometry_rejected": int(closure_geometry_rejected),
+        "closure_pose_collision_rejected": int(closure_pose_collision_rejected),
+        "closure_valid_count": len(validated_candidates),
+        "unique_grasp_count": unique_count,
+    }
     merge_reduction_ratio = (
         1.0 - unique_count / raw_count if raw_count else 0.0
     )
@@ -91,8 +108,13 @@ def run_grasp_annotation(object_path, config=None):
         "point_count": int(len(object_data.points)),
         "raw_grasp_count": raw_count,
         "unique_grasp_count": unique_count,
+        # ``raw_grasp_count`` is retained for compatibility and means the
+        # closure-valid, pre-merge set.  Use candidate_counts for experiments.
+        "candidate_counts": candidate_counts,
         "closure_validation": {
             "input_count": len(refined_candidates),
+            "geometry_rejected": int(closure_geometry_rejected),
+            "pose_collision_rejected": int(closure_pose_collision_rejected),
             "valid_count": len(validated_candidates),
             "rejected_count": len(refined_candidates) - len(validated_candidates),
         },

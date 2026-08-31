@@ -46,6 +46,17 @@ def _assert_record(record):
         value = record.get(field)
         if not np.isscalar(value) or not np.isfinite(float(value)):
             _fail(f"{field} must be finite")
+    search_opening = record.get("search_opening_mm")
+    grasp_width = record.get("grasp_width_mm")
+    support_span = record.get("support_span_mm")
+    if search_opening is not None and grasp_width is not None:
+        if float(grasp_width) > float(search_opening) + 1e-9:
+            _fail("grasp_width_mm must not exceed search_opening_mm")
+    if search_opening is not None and support_span is not None:
+        if float(support_span) > float(search_opening) + 1e-9:
+            _fail("support_span_mm must not exceed search_opening_mm")
+    if record.get("closure_pose_valid") is False:
+        _fail("final annotation contains an invalid refined pose")
     for field, value in record.items():
         if field.startswith("score_") and value is not None and not np.isfinite(float(value)):
             _fail(f"{field} contains a non-finite score")
@@ -78,6 +89,27 @@ def assert_annotation_invariants(result):
         _fail("meta raw_grasp_count does not match records")
     if result.meta.get("unique_grasp_count") != unique_count:
         _fail("meta unique_grasp_count does not match records")
+
+    counts = result.meta.get("candidate_counts")
+    if counts is not None:
+        expected = {
+            "closure_valid_count": raw_count,
+            "unique_grasp_count": unique_count,
+        }
+        for key, value in expected.items():
+            if counts.get(key) != value:
+                _fail(f"candidate_counts[{key}] does not match records")
+        for key in (
+            "generated_candidate_count",
+            "scored_candidate_count",
+            "refinement_input_count",
+            "closure_geometry_rejected",
+            "closure_pose_collision_rejected",
+        ):
+            if key not in counts or not isinstance(counts[key], int) or counts[key] < 0:
+                _fail(f"candidate_counts[{key}] must be a non-negative integer")
+        if counts["closure_geometry_rejected"] + counts["closure_pose_collision_rejected"] > counts["refinement_input_count"]:
+            _fail("candidate closure rejection counts exceed refinement input")
 
     for record in result.raw_grasps:
         _assert_record(record)

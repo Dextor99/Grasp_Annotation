@@ -75,6 +75,15 @@ def run_validation_case(case, model_directory, output_directory, repeats=3, top_
                 "repeat_id": repeat_id,
                 "raw_grasp_count": len(result.raw_grasps),
                 "unique_grasp_count": len(result.unique_grasps),
+                "candidate_counts": result.meta.get("candidate_counts", {
+                    "generated_candidate_count": len(result.raw_grasps),
+                    "scored_candidate_count": len(result.raw_grasps),
+                    "refinement_input_count": len(result.raw_grasps),
+                    "closure_geometry_rejected": 0,
+                    "closure_pose_collision_rejected": 0,
+                    "closure_valid_count": len(result.raw_grasps),
+                    "unique_grasp_count": len(result.unique_grasps),
+                }),
                 "merge_reduction_ratio": result.meta.get("merge_reduction_ratio"),
                 "total_s": result.meta["timings"]["total_s"],
             }
