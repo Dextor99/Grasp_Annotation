@@ -9,6 +9,7 @@ from time import perf_counter
 from grasp_config import GraspGenerationConfig
 from grasp_determinism import configure_determinism
 from grasp_merge import merge_grasp_candidates
+from grasp_refinement import refine_grasp_closures
 from grasp_schema import normalize_grasp_record
 from grasp_scoring import score_grasp_candidates
 from multi_view_grasp import generate_multi_view_grasps
@@ -49,15 +50,22 @@ def run_grasp_annotation(object_path, config=None):
     timings["scoring_s"] = perf_counter() - stage_start
 
     stage_start = perf_counter()
-    unique_candidates = merge_grasp_candidates(
+    refined_candidates = refine_grasp_closures(
         scored_candidates,
+        margin_mm=config.closure_margin_mm,
+    )
+    timings["refinement_s"] = perf_counter() - stage_start
+
+    stage_start = perf_counter()
+    unique_candidates = merge_grasp_candidates(
+        refined_candidates,
         translation_threshold_mm=config.translation_merge_mm,
         rotation_threshold_deg=config.rotation_merge_deg,
     )
     timings["merge_s"] = perf_counter() - stage_start
 
     stage_start = perf_counter()
-    raw_records = [normalize_grasp_record(grasp) for grasp in scored_candidates]
+    raw_records = [normalize_grasp_record(grasp) for grasp in refined_candidates]
     unique_records = [normalize_grasp_record(grasp) for grasp in unique_candidates]
     timings["normalization_s"] = perf_counter() - stage_start
     timings["total_s"] = perf_counter() - total_start

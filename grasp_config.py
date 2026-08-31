@@ -25,6 +25,7 @@ class GraspGenerationConfig:
     min_intersection_points: int = 5
     translation_merge_mm: float = 5.0
     rotation_merge_deg: float = 10.0
+    closure_margin_mm: float = 2.0
     deterministic: bool = True
     random_seed: int = 0
     enable_visualization: bool = False
@@ -43,6 +44,7 @@ class GraspGenerationConfig:
         for name in (
             "cone_angle_deg", "depth_max_ratio", "collision_threshold_mm",
             "translation_merge_mm", "rotation_merge_deg",
+            "closure_margin_mm",
         ):
             if float(getattr(self, name)) <= 0:
                 raise ValueError(f"{name} must be positive")

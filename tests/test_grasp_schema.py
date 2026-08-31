@@ -43,6 +43,9 @@ class GraspSchemaTests(unittest.TestCase):
         self.assertEqual(record["translation"], [0.0, 0.0, 0.0])
         self.assertTrue(np.allclose(record["quaternion_xyzw"], [0.0, 0.0, 0.0, 1.0]))
         self.assertEqual(record["opening_mm"], 45.0)
+        self.assertEqual(record["search_opening_mm"], 45.0)
+        self.assertEqual(record["grasp_width_mm"], 45.0)
+        self.assertFalse(record["closure_refined"])
         self.assertEqual(record["depth_mm"], 20.0)
         self.assertEqual(record["score_force_closure"], 0.8)
 

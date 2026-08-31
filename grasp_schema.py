@@ -99,6 +99,23 @@ def normalize_grasp_record(grasp):
         "rotation_matrix": rotation.astype(float).tolist(),
         "quaternion_xyzw": Rotation.from_matrix(rotation).as_quat().astype(float).tolist(),
         "opening_mm": _finite_float(grasp.get("opening"), "opening"),
+        "search_opening_mm": _finite_float(
+            grasp.get("search_opening_mm", grasp.get("opening")),
+            "search_opening_mm",
+        ),
+        "grasp_width_mm": _finite_float(
+            grasp.get("grasp_width_mm", grasp.get("opening")),
+            "grasp_width_mm",
+        ),
+        "closure_center_offset_mm": _finite_float(
+            grasp.get("closure_center_offset_mm", 0.0),
+            "closure_center_offset_mm",
+        ),
+        "closure_margin_mm": _finite_float(
+            grasp.get("closure_margin_mm", 0.0),
+            "closure_margin_mm",
+        ),
+        "closure_refined": bool(grasp.get("closure_refined", False)),
         "depth_mm": _finite_float(grasp.get("depth"), "depth"),
         "score_total": _finite_float(grasp.get("score_total"), "score_total"),
         "view_id": _source_int(grasp["view_id"], "view_id"),

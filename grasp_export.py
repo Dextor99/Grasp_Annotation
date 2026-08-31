@@ -8,10 +8,14 @@ from pathlib import Path
 import numpy as np
 
 
-def _array(records, field, shape, dtype=float):
+def _array(records, field, shape, dtype=float, fallback_field=None):
     if not records:
         return np.empty((0, *shape), dtype=dtype)
-    return np.asarray([record[field] for record in records], dtype=dtype).reshape(
+    values = [
+        record[field] if field in record else record[fallback_field]
+        for record in records
+    ]
+    return np.asarray(values, dtype=dtype).reshape(
         len(records), *shape
     )
 
@@ -42,6 +46,12 @@ def export_grasp_annotations(result, output_directory):
         "rotation_matrices": _array(records, "rotation_matrix", (3, 3)),
         "quaternions_xyzw": _array(records, "quaternion_xyzw", (4,)),
         "openings_mm": _array(records, "opening_mm", (), dtype=float),
+        "search_openings_mm": _array(
+            records, "search_opening_mm", (), dtype=float, fallback_field="opening_mm"
+        ),
+        "grasp_widths_mm": _array(
+            records, "grasp_width_mm", (), dtype=float, fallback_field="opening_mm"
+        ),
         "depths_mm": _array(records, "depth_mm", (), dtype=float),
         "scores_total": _array(records, "score_total", (), dtype=float),
         "view_ids": _array(records, "view_id", (), dtype=np.int64),

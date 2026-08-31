@@ -137,6 +137,14 @@ def make_object_cloud(object_path):
     return cloud, object_data
 
 
+def _display_opening(record):
+    """Use refined physical width when available, otherwise search opening."""
+    value = record.get("grasp_width_mm", record.get("opening_mm"))
+    if value is None:
+        raise ValueError("grasp record must contain opening_mm or grasp_width_mm")
+    return float(value)
+
+
 def make_gripper_lineset(
     record,
     color=(0.9, 0.2, 0.2),
@@ -145,7 +153,7 @@ def make_gripper_lineset(
     object_data=None,
 ):
     """Build a lightweight line gripper using the project's local axes."""
-    opening = float(record["opening_mm"])
+    opening = _display_opening(record)
     if not np.isfinite(opening) or opening < 0:
         raise ValueError("opening_mm must be finite and non-negative")
     half_open = (opening + float(finger_thickness)) / 2.0
@@ -168,7 +176,7 @@ def make_gripper_lineset(
 
 def make_gripper_meshes(record, color=None, include_axes=False, object_data=None):
     """Build the actual project gripper meshes at a finalized grasp pose."""
-    gripper = GripperModel(opening=float(record["opening_mm"]))
+    gripper = GripperModel(opening=_display_opening(record))
     gripper.transform(record_to_world_transform(record, object_data))
     geometries = gripper.get_meshes()
     physical_meshes = geometries if include_axes else geometries[:3]
@@ -248,7 +256,7 @@ def make_inner_points_geometry(
     points_world = np.asarray(object_data.points, dtype=float)
     if points_world.ndim != 2 or points_world.shape[1] != 3 or not np.all(np.isfinite(points_world)):
         raise ValueError("object_data.points must be a finite (N,3) array")
-    opening = float(record["opening_mm"])
+    opening = _display_opening(record)
     finger_length = float(finger_length)
     finger_thickness = float(finger_thickness)
     if opening < 0 or finger_length <= 0 or finger_thickness <= 0:
@@ -354,6 +362,9 @@ DETAIL_FIELDS = (
     "score_y_diff",
     "score_y0_diff",
     "opening_mm",
+    "search_opening_mm",
+    "grasp_width_mm",
+    "closure_center_offset_mm",
     "depth_mm",
     "view_id",
     "anchor_id",

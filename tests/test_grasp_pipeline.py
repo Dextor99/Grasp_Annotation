@@ -30,6 +30,9 @@ class GraspPipelineTests(unittest.TestCase):
             "grasp_pipeline.score_grasp_candidates",
             side_effect=lambda *args, **kwargs: events.append("score") or scored,
         ), patch(
+            "grasp_pipeline.refine_grasp_closures",
+            side_effect=lambda *args, **kwargs: events.append("refine") or scored,
+        ) as refine, patch(
             "grasp_pipeline.merge_grasp_candidates",
             side_effect=lambda *args, **kwargs: events.append("merge") or unique,
         ) as merge, patch(
@@ -39,7 +42,7 @@ class GraspPipelineTests(unittest.TestCase):
             config = GraspGenerationConfig(num_views=1, anchors_per_view=1)
             result = run_grasp_annotation("model/object.ply", config=config)
 
-        self.assertEqual(events[:5], ["determinism", "prepare", "generate", "score", "merge"])
+        self.assertEqual(events[:6], ["determinism", "prepare", "generate", "score", "refine", "merge"])
         self.assertEqual(result.raw_grasps, [{"id": 1}, {"id": 2}])
         self.assertEqual(result.unique_grasps, [{"id": 1}])
         self.assertEqual(result.meta["raw_grasp_count"], 2)
@@ -51,6 +54,7 @@ class GraspPipelineTests(unittest.TestCase):
         self.assertIs(generate.call_args.kwargs["config"], config)
         self.assertEqual(merge.call_args.kwargs["translation_threshold_mm"], 5.0)
         self.assertEqual(merge.call_args.kwargs["rotation_threshold_deg"], 10.0)
+        self.assertEqual(refine.call_args.kwargs["margin_mm"], 2.0)
 
 
 if __name__ == "__main__":

@@ -19,6 +19,7 @@ class GraspGenerationConfigTests(unittest.TestCase):
         self.assertEqual(config.depth_samples, 16)
         self.assertEqual(config.translation_merge_mm, 5.0)
         self.assertEqual(config.rotation_merge_deg, 10.0)
+        self.assertEqual(config.closure_margin_mm, 2.0)
         self.assertTrue(config.deterministic)
         self.assertEqual(config.random_seed, 0)
         with self.assertRaises(FrozenInstanceError):
@@ -37,6 +38,8 @@ class GraspGenerationConfigTests(unittest.TestCase):
             GraspGenerationConfig(rotation_max_deg=179.5)
         with self.assertRaises(ValueError):
             GraspGenerationConfig(num_approach_azimuth=True)
+        with self.assertRaises(ValueError):
+            GraspGenerationConfig(closure_margin_mm=0.0)
 
         numpy_config = GraspGenerationConfig(cone_angle_deg=np.float32(15.0))
         json.dumps(numpy_config.to_dict(), allow_nan=False)
