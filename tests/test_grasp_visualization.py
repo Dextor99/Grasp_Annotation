@@ -1,6 +1,7 @@
 import json
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -133,6 +134,18 @@ class GraspVisualizationTests(unittest.TestCase):
             (root / "meta.json").write_text(json.dumps({"units": "mm"}), encoding="utf-8")
             self.assertEqual(len(load_grasp_records(root)), 1)
             self.assertEqual(load_meta(root)["units"], "mm")
+
+    def test_show_geometries_can_capture_without_running_interactive_window(self):
+        from grasp_visualization import show_geometries
+
+        visualizer = unittest.mock.Mock()
+        visualizer.create_window.return_value = True
+        visualizer.get_render_option.return_value = unittest.mock.Mock()
+        with patch("grasp_visualization.o3d.visualization.Visualizer", return_value=visualizer):
+            show_geometries([], show_window=False)
+
+        visualizer.run.assert_not_called()
+        visualizer.destroy_window.assert_called_once()
 
 
 if __name__ == "__main__":

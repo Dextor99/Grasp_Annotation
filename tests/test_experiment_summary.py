@@ -31,6 +31,10 @@ class ExperimentSummaryTests(unittest.TestCase):
                 ),
                 encoding="utf-8",
             )
+            (result_dir / "grasps.json").write_text(
+                json.dumps([{"score_total": 0.9}, {"score_total": 0.7}, {"score_total": 0.5}]),
+                encoding="utf-8",
+            )
 
             summary = summarize_result_directory(result_dir)
 
@@ -38,6 +42,9 @@ class ExperimentSummaryTests(unittest.TestCase):
         self.assertEqual(summary["closure_valid_count"], 16)
         self.assertAlmostEqual(summary["closure_acceptance_rate"], 0.8)
         self.assertAlmostEqual(summary["merge_retention_rate"], 0.25)
+        self.assertAlmostEqual(summary["mean_score"], 0.7)
+        self.assertAlmostEqual(summary["top1_score"], 0.9)
+        self.assertAlmostEqual(summary["top20_mean_score"], 0.7)
         self.assertEqual(summary["total_s"], 2.5)
 
     def test_legacy_metadata_falls_back_to_raw_count(self):

@@ -47,6 +47,11 @@ def build_parser():
     )
     parser.add_argument("--point-size", type=float, default=3.0)
     parser.add_argument("--save-image", default=None, help="Optional screenshot path")
+    parser.add_argument(
+        "--no-window",
+        action="store_true",
+        help="Render/capture the scene without entering the interactive viewer",
+    )
     return parser
 
 
@@ -104,6 +109,7 @@ def main(arguments=None):
         title=f"Grasp Visualization - {Path(args.object).stem}",
         point_size=args.point_size,
         save_image=args.save_image,
+        show_window=not args.no_window,
     )
     return 0
 

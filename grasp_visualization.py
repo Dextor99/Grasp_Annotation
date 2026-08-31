@@ -409,7 +409,13 @@ def print_visualization_summary(all_records, shown_records, meta):
             print(f"Merge reduction: {100.0 * float(meta['merge_reduction_ratio']):.2f}%")
 
 
-def show_geometries(geometries, title="6-DoF Grasp Visualization", point_size=3.0, save_image=None):
+def show_geometries(
+    geometries,
+    title="6-DoF Grasp Visualization",
+    point_size=3.0,
+    save_image=None,
+    show_window=True,
+):
     """Display geometries and optionally capture a screenshot after rendering."""
     visualizer = o3d.visualization.Visualizer()
     if not visualizer.create_window(window_name=title, width=1280, height=900):
@@ -425,8 +431,27 @@ def show_geometries(geometries, title="6-DoF Grasp Visualization", point_size=3.
         if save_image is not None:
             image_path = Path(save_image)
             image_path.parent.mkdir(parents=True, exist_ok=True)
-            if not visualizer.capture_screen_image(str(image_path), do_render=True):
-                raise RuntimeError(f"Open3D failed to save screenshot: {image_path}")
-        visualizer.run()
+            if show_window:
+                if not visualizer.capture_screen_image(str(image_path), do_render=True):
+                    raise RuntimeError(f"Open3D failed to save screenshot: {image_path}")
+            else:
+                # Open3D needs one render-loop iteration before a framebuffer
+                # exists.  Register a one-shot callback so batch screenshot
+                # generation remains non-interactive and deterministic.
+                captured = {"done": False}
+
+                def _capture_once(vis):
+                    if not captured["done"]:
+                        if not vis.capture_screen_image(str(image_path), do_render=True):
+                            raise RuntimeError(f"Open3D failed to save screenshot: {image_path}")
+                        captured["done"] = True
+                        close = getattr(vis, "close", None)
+                        if callable(close):
+                            close()
+                    return False
+
+                visualizer.register_animation_callback(_capture_once)
+        if show_window or save_image is not None and not show_window:
+            visualizer.run()
     finally:
         visualizer.destroy_window()
