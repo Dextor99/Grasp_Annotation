@@ -34,7 +34,7 @@ def farthest_point_sample_indices(points, num_samples):
         raise ValueError("num_samples must be a positive integer")
     count = min(num_samples, len(points))
     centroid = np.mean(points, axis=0)
-    selected = [int(np.argmax(np.sum((points - centroid) ** 2, axis=1)))]
+    selected = [int(np.argmin(np.sum((points - centroid) ** 2, axis=1)))]
     selected_mask = np.zeros(len(points), dtype=bool)
     selected_mask[selected[0]] = True
     min_distances = np.sum((points - points[selected[0]]) ** 2, axis=1)

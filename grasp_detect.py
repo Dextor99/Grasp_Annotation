@@ -1082,11 +1082,10 @@ def grasp_detect_from_anchor_approach(
     anchor_point,
     approach_direction,
     anchor_normal=None,
-    approach_offset_mm=100.0,
     metadata=None,
     enable_visualization=False,
 ):
-    """Generate grasps from one surface anchor and one outside-to-object approach."""
+    """Generate grasps with the anchor as the explicit depth-zero reference."""
     anchor = np.asarray(anchor_point, dtype=float)
     approach = np.asarray(approach_direction, dtype=float)
     if anchor.shape != (3,) or not np.all(np.isfinite(anchor)):
@@ -1095,10 +1094,6 @@ def grasp_detect_from_anchor_approach(
     if approach.shape != (3,) or not np.isfinite(approach_length) or approach_length <= 1e-12:
         raise ValueError("approach_direction must be a non-zero finite 3-vector")
     approach = approach / approach_length
-    approach_offset_mm = float(approach_offset_mm)
-    if not np.isfinite(approach_offset_mm) or approach_offset_mm <= 0.0:
-        raise ValueError("approach_offset_mm must be a positive finite number")
-
     reference = np.array([0.0, 0.0, 1.0])
     if abs(float(reference @ approach)) > 0.9:
         reference = np.array([0.0, 1.0, 0.0])
@@ -1106,7 +1101,7 @@ def grasp_detect_from_anchor_approach(
     x_axis /= np.linalg.norm(x_axis)
     y_axis = np.cross(approach, x_axis)
     y_axis /= np.linalg.norm(y_axis)
-    origin = anchor - approach * approach_offset_mm
+    origin = anchor.copy()
     transform = np.eye(4)
     transform[:3, :3] = np.column_stack((x_axis, y_axis, approach))
     transform[:3, 3] = origin

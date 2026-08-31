@@ -15,7 +15,8 @@ class SurfaceAnchorTests(unittest.TestCase):
         first = farthest_point_sample_indices(points, 2)
         second = farthest_point_sample_indices(points, 2)
         np.testing.assert_array_equal(first, second)
-        self.assertEqual(set(first.tolist()), {0, 4})
+        self.assertEqual(first[0], 2)
+        self.assertEqual(first[1], 0)
 
     def test_fps_does_not_repeat_indices_for_duplicate_points(self):
         points = np.array([[0, 0, 0], [0, 0, 0], [1, 0, 0]], dtype=float)

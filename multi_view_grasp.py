@@ -23,7 +23,6 @@ def generate_multi_view_grasps(
     normal_knn=30,
     cone_angle_deg=15.0,
     num_approach_azimuth=4,
-    approach_offset_mm=100.0,
 ):
     """Generate global, local-normal, or local-cone multi-view grasps."""
     if mode not in {"global", "normal", "cone"}:
@@ -103,7 +102,6 @@ def generate_multi_view_grasps(
                         anchor_point=anchor.point,
                         anchor_normal=anchor.normal,
                         approach_direction=approach.direction,
-                        approach_offset_mm=approach_offset_mm,
                         metadata=metadata,
                         enable_visualization=enable_visualization,
                     )

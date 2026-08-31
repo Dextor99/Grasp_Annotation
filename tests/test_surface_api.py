@@ -52,11 +52,10 @@ class SurfaceApiTests(unittest.TestCase):
                 anchor_point=[1, 2, 3],
                 approach_direction=[0, 0, -1],
                 anchor_normal=[0, 0, 1],
-                approach_offset_mm=100,
                 metadata={"anchor_id": 2, "approach_id": 4},
             )
 
-        np.testing.assert_allclose(captured_frames[0]["origin"], [1, 2, 103])
+        np.testing.assert_allclose(captured_frames[0]["origin"], [1, 2, 3])
         np.testing.assert_allclose(captured_frames[0]["z_axis"], [0, 0, -1])
         self.assertIs(captured_objects[0], object_data)
         np.testing.assert_allclose(captured_contacts[0], [1, 2, 3])
