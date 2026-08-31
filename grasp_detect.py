@@ -356,6 +356,53 @@ def filter_collision_free_grippers(gripper_list, point_cloud, threshold=2.0):
     return filtered_list
 
 
+def filter_collision_free_grippers_first_opening(
+    gripper_list,
+    point_cloud,
+    threshold=2.0,
+):
+    """Keep the first collision-free opening for every depth/angle group.
+
+    Candidates are evaluated from the smallest opening to the largest one.
+    Once a group has a collision-free candidate, larger openings in that
+    group are not evaluated.  The generic collision filter above remains
+    exhaustive for callers that need all collision-free candidates.
+    """
+    collision_index = CollisionIndex.from_point_cloud(point_cloud)
+    groups = {}
+    for candidate in gripper_list:
+        key = (candidate.get("depth"), candidate.get("angle_deg"))
+        groups.setdefault(key, []).append(candidate)
+
+    filtered_list = []
+    checked = 0
+    total = len(gripper_list)
+    for candidates in groups.values():
+        ordered = sorted(
+            candidates,
+            key=lambda candidate: (
+                candidate.get("opening", float("inf")),
+                candidate.get("id", float("inf")),
+            ),
+        )
+        for candidate in ordered:
+            checked += 1
+            if not check_collision(
+                candidate["meshes"],
+                point_cloud,
+                threshold,
+                collision_index=collision_index,
+            ):
+                filtered_list.append(candidate)
+                break
+            if checked % 100 == 0 or checked == total:
+                print(f"检测进度：{checked}/{total} 个夹爪")
+
+    print(f"原始夹爪数量：{total}")
+    print(f"按组首个无碰撞夹爪数量：{len(filtered_list)}")
+    return filtered_list
+
+
 ##########################保留每个depth和旋转角度下，开口最小的一个夹爪
 # Structural invalidity is defined as opening == 0 OR depth == 0.
 def filter_structurally_valid_grippers(gripper_list):
@@ -726,6 +773,37 @@ def visualize_gripper_origins_from_object_frame(moved_grippers, T_object_world, 
         spheres.append(sphere)
     return spheres
 
+def _resolve_contact_geometry(
+    profiler,
+    origin,
+    points,
+    frame,
+    contact_center_override=None,
+):
+    """Resolve contact sections, bypassing the legacy search for anchors."""
+    if contact_center_override is None:
+        return profiler.measure(
+            "detect.cylinder_sections",
+            generate_cylinder_sections,
+            origin,
+            pcd_points=points,
+            frame=frame,
+            cyl_radius=75.0,
+            offset=40.0,
+            height=1.0,
+        )
+
+    contact_center = np.asarray(contact_center_override, dtype=float)
+    if contact_center.shape != (3,) or not np.all(np.isfinite(contact_center)):
+        raise ValueError("contact_center_override must be a finite 3-vector")
+    z_axis = np.asarray(frame["z_axis"], dtype=float)
+    z_length = np.linalg.norm(z_axis)
+    if z_axis.shape != (3,) or not np.isfinite(z_length) or z_length <= 1e-12:
+        raise ValueError("frame z_axis must be a non-zero finite 3-vector")
+    z_axis = z_axis / z_length
+    return None, None, contact_center, contact_center + z_axis * 40.0
+
+
 @profiled("detect.grasp_detect.total")
 def grasp_detect(
     ply_path,
@@ -764,22 +842,13 @@ def grasp_detect(
     profiler.count("depth.sample_count", len(depths))
     origin = frame['origin']
     # origin = frame['origin'] + frame['x_axis']*75 - frame['y_axis']*10
-    cyl0, cyl1, center0, center1 = profiler.measure(
-        "detect.cylinder_sections",
-        generate_cylinder_sections,
+    cyl0, cyl1, center0, center1 = _resolve_contact_geometry(
+        profiler,
         origin,
-        pcd_points=pts,
-        frame=frame,
-        cyl_radius=75.0,
-        offset=40.0,
-        height=1.0,
+        pts,
+        frame,
+        contact_center_override=contact_center_override,
     )
-    if contact_center_override is not None:
-        contact_center = np.asarray(contact_center_override, dtype=float)
-        if contact_center.shape != (3,) or not np.all(np.isfinite(contact_center)):
-            raise ValueError("contact_center_override must be a finite 3-vector")
-        center0 = contact_center
-        center1 = center0 + frame["z_axis"] * 40.0
 
 ##########################创建了中间开口为0 的夹爪
     # 创建自定义夹爪
@@ -891,7 +960,7 @@ def grasp_detect(
     # 假设点云为 cloud_down，夹爪集合为 moved_gripper_variants
     non_colliding_grippers = profiler.measure(
         "detect.collision_filter",
-        filter_collision_free_grippers,
+        filter_collision_free_grippers_first_opening,
         rule_valid_candidates,
         point_cloud=cloud_down,
         threshold=3.0,

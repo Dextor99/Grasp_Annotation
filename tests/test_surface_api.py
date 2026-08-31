@@ -4,10 +4,32 @@ from unittest.mock import patch
 
 import numpy as np
 
-from grasp_detect import grasp_detect_from_anchor_approach, grasp_detect_from_surface
+from grasp_detect import (
+    _resolve_contact_geometry,
+    grasp_detect_from_anchor_approach,
+    grasp_detect_from_surface,
+)
 
 
 class SurfaceApiTests(unittest.TestCase):
+    def test_anchor_contact_geometry_skips_cylinder_search(self):
+        class SpyProfiler:
+            def measure(self, *args, **kwargs):
+                raise AssertionError("anchor contact must not run cylinder search")
+
+        frame = {"z_axis": np.array([0.0, 0.0, -1.0])}
+        cyl0, cyl1, center0, center1 = _resolve_contact_geometry(
+            SpyProfiler(),
+            origin=np.zeros(3),
+            points=np.zeros((1, 3)),
+            frame=frame,
+            contact_center_override=np.array([1.0, 2.0, 3.0]),
+        )
+        self.assertIsNone(cyl0)
+        self.assertIsNone(cyl1)
+        np.testing.assert_allclose(center0, [1, 2, 3])
+        np.testing.assert_allclose(center1, [1, 2, -37])
+
     def test_validates_surface_shapes_before_generation(self):
         with self.assertRaises(ValueError):
             grasp_detect_from_surface(None, [[0, 0, 0]], [], [0, 0, 1])
