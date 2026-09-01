@@ -45,9 +45,10 @@ class ExperimentSummaryTests(unittest.TestCase):
         self.assertAlmostEqual(summary["mean_score"], 0.7)
         self.assertAlmostEqual(summary["top1_score"], 0.9)
         self.assertAlmostEqual(summary["top20_mean_score"], 0.7)
-        self.assertEqual(summary["high_quality_count"], 1)
-        self.assertAlmostEqual(summary["high_quality_ratio"], 1 / 3)
-        self.assertAlmostEqual(summary["high_quality_yield"], 1 / 20)
+        self.assertEqual(summary["high_quality_threshold"], 0.13)
+        self.assertEqual(summary["high_quality_count"], 3)
+        self.assertAlmostEqual(summary["high_quality_ratio"], 1.0)
+        self.assertAlmostEqual(summary["high_quality_yield"], 3 / 20)
         self.assertEqual(summary["total_s"], 2.5)
 
     def test_legacy_metadata_falls_back_to_raw_count(self):
