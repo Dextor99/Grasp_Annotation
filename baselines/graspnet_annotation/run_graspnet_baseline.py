@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import time
+from dataclasses import replace
 from pathlib import Path
 
 import numpy as np
@@ -55,6 +56,10 @@ def run(mesh_path: str | Path, output: str | Path, *, input_unit: str = "m", sdf
     for point_id in range(len(grasp_points)):
         point_started = time.perf_counter()
         batch = next(iter_candidate_batches(grasp_points[point_id:point_id + 1], config, point_batch_size=1))
+        # The iterator sees a one-point slice and therefore numbers it from
+        # zero.  Restore the object-level index before writing into the full
+        # label tensor (important when Np > 1).
+        batch = replace(batch, point_indices=np.full(batch.size, point_id, dtype=np.int32))
         stage["candidate_generation"] += time.perf_counter() - point_started
         widths = np.zeros(batch.size, dtype=np.float32)
         collision = np.ones(batch.size, dtype=bool)

@@ -1,6 +1,7 @@
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 import numpy as np
 
@@ -12,10 +13,34 @@ class GraspNetExecutionProtocolTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "sdf_prefix"):
             run(Path("does-not-exist.obj"), Path("out"), input_unit="m")
 
+    def test_geometry_runner_handles_multiple_grasp_points(self):
+        import trimesh
+
+        from baselines.graspnet_annotation.run_graspnet_baseline import run
+
+        mesh = Path(__file__).parents[2] / "baselines" / "graspnet_annotation" / "assets" / "debug_cube" / "debug_cube.obj"
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            fake_views = np.zeros((300, 3), dtype=np.float32)
+            fake_views[:, 2] = 1.0
+            fake_rotations = lambda views, angles: np.repeat(np.eye(3, dtype=np.float32)[None, ...], len(views), axis=0)
+            with patch("baselines.graspnet_annotation.candidate_generation.generate_views", return_value=fake_views), \
+                    patch("baselines.graspnet_annotation.candidate_generation.generate_view_rotations", side_effect=fake_rotations), \
+                    patch("baselines.graspnet_annotation.label_arrays.generate_views", return_value=fake_views), \
+                    patch("baselines.graspnet_annotation.label_arrays.generate_view_rotations", side_effect=fake_rotations):
+                summary = run(mesh, Path(temporary_directory) / "run", input_unit="m", max_points=2, skip_force_closure=True)
+        self.assertEqual(summary["n_grasp_points"], 2)
+        self.assertEqual(summary["n_candidates"], 2 * 300 * 12 * 4)
+
     def test_formal_sdf_default_is_100(self):
         from scripts.baselines.generate_sdf import DEFAULT_GRID_DIM
 
         self.assertEqual(DEFAULT_GRID_DIM, 100)
+
+    def test_shard_executor_rejects_nonpositive_worker_count(self):
+        from scripts.baselines.run_force_closure_shards import run
+
+        with self.assertRaisesRegex(ValueError, "workers"):
+            run(Path("does-not-exist"), Path("does-not-exist.sdf"), Path("shards"), workers=0)
 
     def test_merge_rejects_inconsistent_shard_lengths(self):
         from baselines.graspnet_annotation.config import DenseAnnotationConfig
