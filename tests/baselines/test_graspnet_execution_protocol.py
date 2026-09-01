@@ -30,6 +30,13 @@ class GraspNetExecutionProtocolTests(unittest.TestCase):
                 summary = run(mesh, Path(temporary_directory) / "run", input_unit="m", max_points=2, skip_force_closure=True)
         self.assertEqual(summary["n_grasp_points"], 2)
         self.assertEqual(summary["n_candidates"], 2 * 300 * 12 * 4)
+        self.assertIn("geometry_valid_rate", summary)
+        self.assertIn("geometry_runtime_s", summary)
+        self.assertAlmostEqual(
+            summary["geometry_valid_rate"],
+            summary["n_geometry_valid"] / summary["n_candidates"],
+        )
+        self.assertGreaterEqual(summary["geometry_runtime_s"], 0.0)
 
     def test_geometry_runner_accepts_surface_ply_without_reconstruction(self):
         from baselines.graspnet_annotation.run_graspnet_baseline import run

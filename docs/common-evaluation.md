@@ -162,3 +162,21 @@ mean and population standard deviation for raw candidates, FC/HQ yield, HQ
 rate, mean :math:`\mu`, and native runtime.  GN rows backed by the fixed
 10k protocol are labelled `weighted_stratified_10k`; only a completed exact
 run is labelled `full_exact`.
+
+For the six-object generation-efficiency table, use the original PLY summaries
+directly and keep force-closure metrics out of this report:
+
+```powershell
+$python = "F:\Miniconda\envs\graspnet_baseline_py39_clean\Scripts\python.exe"
+& $python scripts/common_eval/aggregate_ply_geometry.py `
+  --object-dir "model2=results/graspnet-baseline/model2-ply-geometry,results/common-eval/model2-ours-ply-geometry" `
+  --object-dir "juxing=results/graspnet-baseline/juxing-ply-geometry,results/common-eval/juxing-ours-ply-geometry" `
+  --object-dir "shuilongtou=results/graspnet-baseline/shuilongtou-ply-geometry,results/common-eval/shuilongtou-ours-ply-geometry" `
+  --object-dir "yuanzhu=results/graspnet-baseline/yuanzhu-ply-geometry,results/common-eval/yuanzhu-ours-ply-geometry" `
+  --object-dir "huixing=results/graspnet-baseline/huixing-ply-geometry,results/common-eval/huixing-ours-ply-geometry" `
+  --object-dir "cat=results/graspnet-baseline/cat-ply-geometry,results/common-eval/cat-ours-ply-geometry" `
+  --output-dir results/common-eval/ply-geometry-all-objects
+```
+
+This writes `ply_geometry_all_objects.csv` and the across-object
+`ply_geometry_summary.csv`.

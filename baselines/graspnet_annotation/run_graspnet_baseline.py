@@ -135,6 +135,7 @@ def run(mesh_path: str | Path | None, output: str | Path, *, input_unit: str = "
 
     stage["export"] = 0.0
     export_started = time.perf_counter()
+    geometry_runtime = stage["preprocess"] + stage["candidate_generation"] + stage["width_collision"]
     summary = {
         "mesh": str(mesh_path) if mesh_path is not None else None, "surface_ply": str(surface_ply) if surface_ply is not None else None,
         "input_source": "surface_ply" if surface_ply is not None else "mesh",
@@ -145,6 +146,9 @@ def run(mesh_path: str | Path | None, output: str | Path, *, input_unit: str = "
         "n_grasp_points": int(len(grasp_points)), "n_candidates": counts["raw_candidates"],
         "n_empty": counts["empty_count"], "n_collision": counts["collision_count"],
         "n_geometry_valid": counts["geometry_valid_count"], "n_fc_valid": counts["force_closure_valid"],
+        "geometry_valid_rate": counts["geometry_valid_count"] / max(1, counts["raw_candidates"]),
+        "geometry_runtime_s": geometry_runtime,
+        "native_geometry_runtime_s": geometry_runtime,
         "valid_rate": counts["force_closure_valid"] / max(1, counts["raw_candidates"]),
         "force_closure_skipped": bool(skip_force_closure), "config": config.to_dict(),
         "force_closure_limit": max_force_closure_candidates,
