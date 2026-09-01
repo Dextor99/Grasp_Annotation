@@ -25,9 +25,13 @@ foreach ($job in $jobs) {
     New-Item -ItemType Directory -Force -Path $log_dir | Out-Null
     $log = Join-Path $log_dir "$($job.name)-geometry-only.log"
     Write-Host "Running $($job.name) from $($job.ply)"
+    $previous_error_action = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
     & $python -u -m baselines.graspnet_annotation.run_graspnet_baseline `
         --surface-ply $job.ply --input-unit $job.unit --output $output --geometry-only *> $log
-    if ($LASTEXITCODE -ne 0) {
+    $exit_code = $LASTEXITCODE
+    $ErrorActionPreference = $previous_error_action
+    if ($exit_code -ne 0) {
         throw "Geometry-only failed for $($job.name); see $log"
     }
 }
