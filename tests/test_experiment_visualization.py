@@ -37,6 +37,20 @@ class ExperimentVisualizationTests(unittest.TestCase):
         self.assertEqual(args.topk, 20)
         self.assertEqual(args.output_dir, "results/plots")
 
+    def test_parser_accepts_score_threshold(self):
+        from scripts.export_experiment_visualizations import build_parser
+
+        args = build_parser().parse_args(
+            [
+                "--object", "model/cat.ply",
+                "--results", "results/cat",
+                "--output-dir", "results/plots",
+                "--score-threshold", "0.8",
+            ]
+        )
+
+        self.assertAlmostEqual(args.score_threshold, 0.8)
+
 
 if __name__ == "__main__":
     unittest.main()

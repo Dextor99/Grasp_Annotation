@@ -39,16 +39,20 @@ def _set_equal_axes(axis, points):
     axis.set_zlim(center[2] - radius, center[2] + radius)
 
 
-def export_grasp_plot(object_path, result_directory, output_path, topk):
+def export_grasp_plot(object_path, result_directory, output_path, topk, score_threshold=None, dpi=300):
     """Save one object point-cloud plot with the highest-scoring ``topk`` grasps."""
     object_data = prepare_object(str(object_path))
-    records = select_grasps(load_grasp_records(result_directory), topk=topk)
+    records = select_grasps(
+        load_grasp_records(result_directory),
+        topk=topk,
+        score_threshold=score_threshold,
+    )
     object_points = np.asarray(object_data.points, dtype=float)
     if len(object_points) > 20000:
         step = int(np.ceil(len(object_points) / 20000))
         object_points = object_points[::step]
 
-    figure = plt.figure(figsize=(8, 7), dpi=160)
+    figure = plt.figure(figsize=(8, 7), dpi=int(dpi))
     axis = figure.add_subplot(111, projection="3d")
     axis.scatter(
         object_points[:, 0], object_points[:, 1], object_points[:, 2],
@@ -85,6 +89,8 @@ def build_parser():
     parser.add_argument("--results", required=True)
     parser.add_argument("--output-dir", required=True)
     parser.add_argument("--topk", type=int, default=20)
+    parser.add_argument("--score-threshold", type=float, default=None)
+    parser.add_argument("--dpi", type=int, default=300)
     return parser
 
 
@@ -92,16 +98,23 @@ def main(arguments=None):
     args = build_parser().parse_args(arguments)
     if args.topk <= 0:
         raise ValueError("--topk must be positive")
+    if args.score_threshold is not None and not np.isfinite(args.score_threshold):
+        raise ValueError("--score-threshold must be finite")
+    if args.dpi <= 0:
+        raise ValueError("--dpi must be positive")
     stem = Path(args.object).stem
     export_grasp_plot(
         args.object, args.results,
         Path(args.output_dir) / f"{stem}_top1.png", topk=1,
+        score_threshold=args.score_threshold, dpi=args.dpi,
     )
     export_grasp_plot(
         args.object, args.results,
         Path(args.output_dir) / f"{stem}_top{args.topk}.png", topk=args.topk,
+        score_threshold=args.score_threshold, dpi=args.dpi,
     )
-    print(f"Saved {stem} Top-1 and Top-{args.topk} visualizations to {args.output_dir}")
+    threshold_text = "all scores" if args.score_threshold is None else f"score >= {args.score_threshold:g}"
+    print(f"Saved {stem} Top-1 and Top-{args.topk} visualizations ({threshold_text}) to {args.output_dir}")
     return 0
 
 

@@ -82,6 +82,7 @@ approach sampling mode：`global`、`normal`、`cone`。该设置用于控制消
 
 - 主实验：`results/ours-main/visualizations/`
 - 消融实验：`results/ablation/visualizations/<object>_<mode>/`
+- 高质量主实验（`score_total >= 0.8`）：`results/ours-main/visualizations-hq/`
 
 导出命令示例：
 
@@ -91,6 +92,16 @@ F:\Miniconda\envs\py310\python.exe scripts/export_experiment_visualizations.py `
   --results results\ours-main\cat `
   --output-dir results\ours-main\visualizations `
   --topk 20
+```
+
+论文用高质量线框图命令：
+
+```powershell
+F:\Miniconda\envs\py310\python.exe scripts/export_experiment_visualizations.py `
+  --object model\colmap\cat.ply `
+  --results results\ours-main\cat `
+  --output-dir results\ours-main\visualizations-hq `
+  --topk 20 --score-threshold 0.8 --dpi 300
 ```
 
 ## 可复现批处理
