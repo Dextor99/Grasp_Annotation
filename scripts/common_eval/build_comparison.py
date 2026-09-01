@@ -12,12 +12,14 @@ import numpy as np
 
 
 COMPARISON_FIELDS = (
-    "method", "n_candidates", "n_geometry_valid", "geometry_valid_rate",
+    "method", "n_candidates", "n_raw_candidates", "n_unique_outputs",
+    "n_geometry_valid", "geometry_valid_rate",
     "common_eval_count", "common_fc_valid", "common_fc_valid_rate",
     "n_mu_le_04", "hq_rate_mu04", "mean_mu", "hq_yield",
+    "fc_yield_raw", "hq_yield_raw", "hq_rate_among_fc",
     "native_wall_time_s", "common_eval_wall_time_s",
     "is_estimate", "estimated_common_fc_valid", "estimated_n_mu_le_04",
-    "estimated_hq_yield",
+    "estimated_hq_yield", "estimated_fc_yield_raw", "estimated_hq_yield_raw",
 )
 
 
@@ -34,6 +36,8 @@ def summarize_scores(
     return {
         "method": method,
         "n_candidates": int(n_candidates),
+        "n_raw_candidates": int(n_candidates),
+        "n_unique_outputs": "",
         "n_geometry_valid": int(n_geometry_valid),
         "geometry_valid_rate": float(n_geometry_valid / n_candidates) if n_candidates else 0.0,
         "common_eval_count": common_eval_count,
@@ -43,12 +47,17 @@ def summarize_scores(
         "hq_rate_mu04": float(hq.mean()) if len(valid_scores) else 0.0,
         "mean_mu": float(valid_scores.mean()) if len(valid_scores) else -1.0,
         "hq_yield": float(hq.sum() / n_candidates) if n_candidates else 0.0,
+        "fc_yield_raw": float(valid.sum() / n_candidates) if n_candidates else 0.0,
+        "hq_yield_raw": float(hq.sum() / n_candidates) if n_candidates else 0.0,
+        "hq_rate_among_fc": float(hq.sum() / valid.sum()) if valid.any() else 0.0,
         "native_wall_time_s": float(native_wall_time_s),
         "common_eval_wall_time_s": float(common_eval_wall_time_s),
         "is_estimate": False,
         "estimated_common_fc_valid": "",
         "estimated_n_mu_le_04": "",
         "estimated_hq_yield": "",
+        "estimated_fc_yield_raw": "",
+        "estimated_hq_yield_raw": "",
     }
 
 
@@ -71,6 +80,8 @@ def estimate_full_from_subset(
         "estimated_common_fc_valid": estimated_fc,
         "estimated_n_mu_le_04": estimated_hq,
         "estimated_hq_yield": estimated_hq / int(n_candidates) if n_candidates else 0.0,
+        "estimated_fc_yield_raw": estimated_fc / int(n_candidates) if n_candidates else 0.0,
+        "estimated_hq_yield_raw": estimated_hq / int(n_candidates) if n_candidates else 0.0,
     }
 
 

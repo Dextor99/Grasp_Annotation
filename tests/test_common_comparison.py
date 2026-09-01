@@ -20,6 +20,11 @@ class CommonComparisonTests(unittest.TestCase):
         self.assertEqual(result["n_mu_le_04"], 2)
         self.assertAlmostEqual(result["hq_rate_mu04"], 2 / 3)
         self.assertAlmostEqual(result["hq_yield"], 2 / 100)
+        self.assertEqual(result["n_raw_candidates"], 100)
+        self.assertEqual(result["n_unique_outputs"], "")
+        self.assertAlmostEqual(result["fc_yield_raw"], 3 / 100)
+        self.assertAlmostEqual(result["hq_yield_raw"], 2 / 100)
+        self.assertAlmostEqual(result["hq_rate_among_fc"], 2 / 3)
 
     def test_estimate_from_exact_geometry_rate_is_marked(self):
         from scripts.common_eval.build_comparison import estimate_full_from_subset

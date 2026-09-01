@@ -53,7 +53,7 @@ F:\Miniconda\envs\py39\python.exe `
   --ours-object model\2.ply `
   --reference-obj baselines\graspnet_annotation\assets\2\2_repaired.obj `
   --sdf-prefix C:\path\to\2_repaired `
-  --output results\common-eval\model2-ours
+  --output results\common-eval\model2-ours-corrected
 ```
 
 Ours records are in millimetres and the Ours object frame.  The adapter
@@ -70,7 +70,7 @@ F:\Miniconda\envs\py39\python.exe scripts/common_eval/build_comparison.py `
   --gn-full-geometry results\graspnet-baseline\model2-full-geometry `
   --gn-full-subset results\graspnet-baseline\model2-full-fc-subset10k\merged `
   --gn-full-subset-shards results\graspnet-baseline\model2-full-fc-subset10k\shards `
-  --ours-common-summary results\common-eval\model2-ours\summary.json `
+  --ours-common-summary results\common-eval\model2-ours-corrected\summary.json `
   --output-csv results\common-eval\model2-comparison.csv
 ```
 

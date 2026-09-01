@@ -114,7 +114,9 @@ def record_to_official_components(record: dict, T_object_world: np.ndarray | Non
     grasp_row[2] = 0.02
     grasp_row[3] = depth_m
     grasp_row[4:13] = official_rotation.astype(np.float32).reshape(9)
-    grasp_row[13:16] = center_m.astype(np.float32)
+    # GraspNetAPI treats row[13:16] as the surface grasp point and adds the
+    # approach depth when constructing the Dex-Net center.
+    grasp_row[13:16] = grasp_point_m.astype(np.float32)
     grasp_row[16] = 0.0
     return {
         "grasp_point_m": grasp_point_m.astype(np.float32),
@@ -134,6 +136,8 @@ def summarize_common_evaluation(
     scored_mask: np.ndarray,
     error_mask: np.ndarray,
     wall_time_s: float,
+    native_raw_count: int | None = None,
+    native_unique_count: int | None = None,
 ) -> dict:
     """Summarize common evaluation without changing input order or ranking."""
 
@@ -154,8 +158,14 @@ def summarize_common_evaluation(
     native_scores = np.asarray(
         [float(record.get("score_total", 0.0)) for record in records], dtype=float
     )
+    raw_count = int(n if native_raw_count is None else native_raw_count)
+    unique_count = int(n if native_unique_count is None else native_unique_count)
+    if raw_count < unique_count or unique_count != n:
+        raise ValueError("native raw/unique counts must satisfy raw >= unique == evaluated record count")
     return {
-        "n_candidates": int(n),
+        "n_candidates": raw_count,
+        "n_raw_candidates": raw_count,
+        "n_unique_outputs": unique_count,
         "n_geometry_valid": int(geometry_valid.sum()),
         "geometry_valid_rate": float(geometry_valid.mean()) if n else 0.0,
         "common_eval_count": int(n),
@@ -167,7 +177,11 @@ def summarize_common_evaluation(
         "common_fc_valid_rate_geometry": float(fc_valid.sum() / geometry_valid.sum()) if geometry_valid.any() else 0.0,
         "n_mu_le_04": int(hq.sum()),
         "hq_rate_mu04": float(hq.mean()) if len(scores) else 0.0,
-        "hq_yield": float(hq.sum() / n) if n else 0.0,
+        "hq_yield": float(hq.sum() / raw_count) if raw_count else 0.0,
+        "fc_yield_raw": float(fc_valid.sum() / raw_count) if raw_count else 0.0,
+        "hq_yield_raw": float(hq.sum() / raw_count) if raw_count else 0.0,
+        "hq_rate_among_fc": float(hq.sum() / fc_valid.sum()) if fc_valid.any() else 0.0,
+        "hq_fraction_unique_outputs": float(hq.sum() / unique_count) if unique_count else 0.0,
         "mean_mu": float(scores.mean()) if len(scores) else -1.0,
         "n_scored": int(arrays["scored_mask"].sum()),
         "n_errors": int(arrays["error_mask"].sum()),
@@ -208,6 +222,8 @@ def evaluate_ours_records(
     empty_thresh: int = 10,
     friction_coefficients=(1.0, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1),
     T_object_world: np.ndarray | None = None,
+    native_raw_count: int | None = None,
+    native_unique_count: int | None = None,
 ) -> tuple[dict, list[dict]]:
     """Run official collision and Dex-Net FC for every Ours record."""
 
@@ -267,7 +283,9 @@ def evaluate_ours_records(
                 error_messages.append({"index": int(index), "error": repr(exc)})
     elapsed = time.perf_counter() - started
     summary = summarize_common_evaluation(
-        records, collision, empty, mu_min, scored_mask, error_mask, elapsed
+        records, collision, empty, mu_min, scored_mask, error_mask, elapsed,
+        native_raw_count=native_raw_count,
+        native_unique_count=native_unique_count,
     )
     summary["errors"] = error_messages
     output_records = []
@@ -368,6 +386,8 @@ def main(argv=None) -> int:
         empty_thresh=args.empty_thresh,
         friction_coefficients=config.friction_coefficients,
         T_object_world=object_transform,
+        native_raw_count=int(meta.get("raw_grasp_count", len(records))),
+        native_unique_count=int(meta.get("unique_grasp_count", len(records))),
     )
     summary.update(
         {
