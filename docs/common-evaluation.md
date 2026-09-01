@@ -61,6 +61,13 @@ FC/HQ rates, weighted mean :math:`\mu`, and full-population estimates.  The
 CLI validates that point population sizes sum to the exact full geometry-valid
 count and that sampled sizes sum to the manifest size.
 
+The full exact FC executor is an optional calibration job, not a prerequisite
+for the formal comparison.  For the final quality table, keep the fixed
+10,000 point-stratified GN subset and evaluate all final unique Ours records
+with the same official Dex-Net scorer.  If a full-FC calibration was started,
+it may be stopped while preserving its completed shard files; it must not be
+described as a failed experiment or mixed into the 10k quality estimates.
+
 ## Ours adapter
 
 The adapter evaluates every Ours record in input order.  It preserves the
