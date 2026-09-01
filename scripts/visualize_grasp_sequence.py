@@ -16,16 +16,17 @@ from grasp_visualization import (
     load_meta,
     select_grasps,
 )
+from grasp_config import V4_HIGH_QUALITY_THRESHOLD
 
 
 STATE_NAMES = ("top1", "top20", "high_quality")
 DEFAULT_MODELS = (
-    ("juxing", "model/juxing.ply", "results/ours-main/juxing"),
-    ("yuanzhu", "model/yuanzhu.ply", "results/ours-main/yuanzhu"),
-    ("sanjiao", "model/sanjiao.ply", "results/ours-main/sanjiao"),
-    ("huixing", "model/huixing.ply", "results/ours-main/huixing"),
-    ("shuilongtou", "model/shuilongtou.ply", "results/ours-main/shuilongtou"),
-    ("cat", "model/colmap/cat.ply", "results/ours-main/cat"),
+    ("juxing", "model/juxing.ply", "results/formal-v1.2/juxing"),
+    ("yuanzhu", "model/yuanzhu.ply", "results/formal-v1.2/yuanzhu"),
+    ("sanjiao", "model/sanjiao.ply", "results/formal-v1.2/sanjiao"),
+    ("huixing", "model/huixing.ply", "results/formal-v1.2/huixing"),
+    ("shuilongtou", "model/shuilongtou.ply", "results/formal-v1.2/shuilongtou"),
+    ("cat", "model/colmap/cat.ply", "results/formal-v1.2/cat"),
 )
 
 
@@ -68,7 +69,13 @@ def _selected_records(records, state_index, topk, score_threshold):
     return ranked
 
 
-def show_interactive_sequence(models, topk=20, score_threshold=0.8, point_size=3.0, screenshot_dir=None):
+def show_interactive_sequence(
+    models,
+    topk=20,
+    score_threshold=V4_HIGH_QUALITY_THRESHOLD,
+    point_size=3.0,
+    screenshot_dir=None,
+):
     """Open a key-controlled Open3D viewer over all model/state scenes."""
     import open3d as o3d
 
@@ -77,7 +84,7 @@ def show_interactive_sequence(models, topk=20, score_threshold=0.8, point_size=3
     if topk <= 0 or point_size <= 0:
         raise ValueError("topk and point_size must be positive")
     if screenshot_dir is None:
-        screenshot_dir = Path("results/interactive-screenshots")
+        screenshot_dir = Path("results/formal-v1.2/interactive-screenshots")
     screenshot_dir = Path(screenshot_dir)
 
     prepared = []
@@ -162,9 +169,9 @@ def build_parser():
         help="Repeatable name=object_path=result_directory; defaults to six main models",
     )
     parser.add_argument("--topk", type=int, default=20)
-    parser.add_argument("--score-threshold", type=float, default=0.8)
+    parser.add_argument("--score-threshold", type=float, default=V4_HIGH_QUALITY_THRESHOLD)
     parser.add_argument("--point-size", type=float, default=3.0)
-    parser.add_argument("--screenshot-dir", default="results/interactive-screenshots")
+    parser.add_argument("--screenshot-dir", default="results/formal-v1.2/interactive-screenshots")
     return parser
 
 

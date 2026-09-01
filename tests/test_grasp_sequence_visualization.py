@@ -2,6 +2,14 @@ import unittest
 
 
 class GraspSequenceVisualizationTests(unittest.TestCase):
+    def test_defaults_target_frozen_formal_results_and_threshold(self):
+        from scripts.visualize_grasp_sequence import build_parser
+
+        args = build_parser().parse_args([])
+
+        self.assertAlmostEqual(args.score_threshold, 0.13)
+        self.assertEqual(args.screenshot_dir, "results/formal-v1.2/interactive-screenshots")
+
     def test_sequence_advances_states_then_models(self):
         from scripts.visualize_grasp_sequence import advance_sequence_index
 
