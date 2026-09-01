@@ -37,3 +37,16 @@ as well.
 
 The debug cube is independent test data. Original project meshes, including
 `model/2.stl`, are never overwritten by the gate runner.
+
+## SDF generation for an independent repaired asset
+
+SDFGen is an external native utility; keep it outside this repository.  The
+wrapper validates paths and invokes it without modifying the OBJ:
+
+```powershell
+F:\Miniconda\envs\graspnet_baseline_py39_clean\Scripts\python.exe `
+  scripts\baselines\generate_sdf.py `
+  --sdf-exe C:\path\to\sdf_gen.exe `
+  --obj baselines\graspnet_annotation\assets\2\2_repaired.obj `
+  --grid-dim 64 --padding 5
+```
