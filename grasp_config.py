@@ -6,6 +6,17 @@ from dataclasses import asdict, dataclass
 from numbers import Integral, Real
 
 
+# Frozen evaluation-protocol values.  These are deliberately kept outside the
+# generation search parameters: the threshold labels a finalized V4 grasp as
+# high quality, but never changes candidate generation or scoring.
+V4_HIGH_QUALITY_THRESHOLD = 0.13
+V4_THRESHOLD_SOURCE = "manual_calibration"
+V4_CALIBRATION_SAMPLES = 60
+V4_CALIBRATION_GOOD = 19
+V4_CALIBRATION_BAD = 25
+V4_CALIBRATION_UNCERTAIN = 16
+
+
 @dataclass(frozen=True)
 class GraspGenerationConfig:
     num_views: int = 5

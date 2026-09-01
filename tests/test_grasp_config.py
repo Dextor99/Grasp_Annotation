@@ -7,7 +7,7 @@ import numpy as np
 
 class GraspGenerationConfigTests(unittest.TestCase):
     def test_freezes_requested_method_defaults(self):
-        from grasp_config import GraspGenerationConfig
+        from grasp_config import GraspGenerationConfig, V4_HIGH_QUALITY_THRESHOLD
 
         config = GraspGenerationConfig()
 
@@ -20,6 +20,7 @@ class GraspGenerationConfigTests(unittest.TestCase):
         self.assertEqual(config.translation_merge_mm, 5.0)
         self.assertEqual(config.rotation_merge_deg, 10.0)
         self.assertEqual(config.closure_margin_mm, 2.0)
+        self.assertEqual(V4_HIGH_QUALITY_THRESHOLD, 0.13)
         self.assertTrue(config.deterministic)
         self.assertEqual(config.random_seed, 0)
         with self.assertRaises(FrozenInstanceError):
@@ -44,6 +45,23 @@ class GraspGenerationConfigTests(unittest.TestCase):
         numpy_config = GraspGenerationConfig(cone_angle_deg=np.float32(15.0))
         json.dumps(numpy_config.to_dict(), allow_nan=False)
         self.assertIs(type(numpy_config.to_dict()["cone_angle_deg"]), float)
+
+    def test_v4_protocol_metadata_is_frozen_and_json_safe(self):
+        import grasp_config
+
+        metadata = {
+            "threshold": grasp_config.V4_HIGH_QUALITY_THRESHOLD,
+            "source": grasp_config.V4_THRESHOLD_SOURCE,
+            "samples": grasp_config.V4_CALIBRATION_SAMPLES,
+            "good": grasp_config.V4_CALIBRATION_GOOD,
+            "bad": grasp_config.V4_CALIBRATION_BAD,
+            "uncertain": grasp_config.V4_CALIBRATION_UNCERTAIN,
+        }
+        self.assertEqual(metadata["threshold"], 0.13)
+        self.assertEqual(metadata["source"], "manual_calibration")
+        self.assertEqual(metadata["samples"], 60)
+        self.assertEqual(metadata["good"] + metadata["bad"] + metadata["uncertain"], 60)
+        json.dumps(metadata, allow_nan=False)
 
 
 if __name__ == "__main__":

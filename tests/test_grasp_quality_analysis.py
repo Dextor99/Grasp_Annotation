@@ -43,6 +43,7 @@ class GraspQualityAnalysisTests(unittest.TestCase):
             self.assertEqual(len(rows), 1)
             self.assertEqual(rows[0]["unique_grasp_count"], 2)
             self.assertAlmostEqual(rows[0]["high_quality_yield"], 0.1)
+            self.assertAlmostEqual(rows[0]["high_quality_threshold"], 0.13)
             self.assertTrue(output_csv.is_file())
 
     def test_writes_weighted_aggregate_statistics(self):

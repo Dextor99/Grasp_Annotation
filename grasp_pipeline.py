@@ -6,7 +6,15 @@ from dataclasses import dataclass
 from pathlib import Path
 from time import perf_counter
 
-from grasp_config import GraspGenerationConfig
+from grasp_config import (
+    GraspGenerationConfig,
+    V4_CALIBRATION_BAD,
+    V4_CALIBRATION_GOOD,
+    V4_CALIBRATION_SAMPLES,
+    V4_CALIBRATION_UNCERTAIN,
+    V4_HIGH_QUALITY_THRESHOLD,
+    V4_THRESHOLD_SOURCE,
+)
 from grasp_determinism import configure_determinism
 from grasp_merge import merge_grasp_candidates
 from grasp_refinement import refine_grasp_closures, validate_refined_grasp_closures
@@ -95,6 +103,11 @@ def run_grasp_annotation(object_path, config=None):
 
     raw_count = len(raw_records)
     unique_count = len(unique_records)
+    high_quality_count = sum(
+        float(record.get("score_total_v4", record.get("score_total", 0.0)))
+        >= V4_HIGH_QUALITY_THRESHOLD
+        for record in unique_records
+    )
     candidate_counts = {
         "generated_candidate_count": len(raw_candidates),
         "scored_candidate_count": len(scored_candidates),
@@ -127,6 +140,18 @@ def run_grasp_annotation(object_path, config=None):
         },
         "merge_reduction_ratio": merge_reduction_ratio,
         "score_version": "v4",
+        "high_quality_threshold": V4_HIGH_QUALITY_THRESHOLD,
+        "high_quality_threshold_source": V4_THRESHOLD_SOURCE,
+        "high_quality_count": int(high_quality_count),
+        "high_quality_ratio": (
+            float(high_quality_count / unique_count) if unique_count else 0.0
+        ),
+        "hq_calibration": {
+            "samples": V4_CALIBRATION_SAMPLES,
+            "good": V4_CALIBRATION_GOOD,
+            "bad": V4_CALIBRATION_BAD,
+            "uncertain": V4_CALIBRATION_UNCERTAIN,
+        },
         "config": config.to_dict(),
         "timings": timings,
     }

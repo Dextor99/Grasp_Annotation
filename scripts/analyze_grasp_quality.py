@@ -6,11 +6,17 @@ import argparse
 import csv
 import json
 from pathlib import Path
+import sys
 
 import numpy as np
 
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
-DEFAULT_THRESHOLDS = (0.0, 0.5, 0.8, 0.9, 0.95)
+from grasp_config import V4_HIGH_QUALITY_THRESHOLD
+
+DEFAULT_THRESHOLDS = (0.0, V4_HIGH_QUALITY_THRESHOLD, 0.5, 0.8, 0.9, 0.95)
 
 
 def _threshold_key(threshold):
@@ -99,6 +105,7 @@ def analyze_csv(input_csv, output_csv, aggregate_csv=None):
             "object": source.get("object", ""),
             "generated_candidate_count": int(source.get("generated_candidate_count", 0) or 0),
             "closure_valid_count": int(source.get("closure_valid_count", 0) or 0),
+            "high_quality_threshold": V4_HIGH_QUALITY_THRESHOLD,
         }
         meta_path = result_dir / "meta.json"
         if meta_path.is_file():
@@ -114,7 +121,8 @@ def analyze_csv(input_csv, output_csv, aggregate_csv=None):
             )
         row.update(compute_score_statistics(records))
         row["high_quality_yield"] = float(
-            row["score_ge_0_8_count"] / row["generated_candidate_count"]
+            row[f"score_ge_{_threshold_key(V4_HIGH_QUALITY_THRESHOLD)}_count"]
+            / row["generated_candidate_count"]
             if row["generated_candidate_count"] else 0.0
         )
         rows.append(row)
@@ -129,10 +137,12 @@ def analyze_csv(input_csv, output_csv, aggregate_csv=None):
             "anchors_per_view": "",
             "generated_candidate_count": total_generated,
             "closure_valid_count": total_closure_valid,
+            "high_quality_threshold": V4_HIGH_QUALITY_THRESHOLD,
         }
         aggregate.update(compute_score_statistics(all_records))
         aggregate["high_quality_yield"] = float(
-            aggregate["score_ge_0_8_count"] / total_generated
+            aggregate[f"score_ge_{_threshold_key(V4_HIGH_QUALITY_THRESHOLD)}_count"]
+            / total_generated
             if total_generated else 0.0
         )
         _write_rows(aggregate_csv, [aggregate])

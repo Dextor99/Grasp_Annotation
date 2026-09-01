@@ -9,6 +9,12 @@ import math
 from pathlib import Path
 import sys
 
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from grasp_config import V4_HIGH_QUALITY_THRESHOLD
+
 
 SUMMARY_FIELDS = (
     "result_dir",
@@ -35,7 +41,7 @@ SUMMARY_FIELDS = (
     "total_s",
 )
 
-HIGH_QUALITY_THRESHOLD = 0.8
+HIGH_QUALITY_THRESHOLD = V4_HIGH_QUALITY_THRESHOLD
 
 
 def _safe_rate(numerator, denominator):
