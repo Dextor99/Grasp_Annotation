@@ -14,13 +14,17 @@ LABELS = {"G", "B", "U"}
 
 
 def _metrics(samples, threshold):
+    # ``np.linspace`` supplies NumPy scalar thresholds.  Coerce all values
+    # used in the report to Python scalars so the JSON/CSV writers remain
+    # compatible with standard-library serializers.
+    threshold = float(threshold)
     good = [sample for sample in samples if sample["label"] == "G"]
     bad = [sample for sample in samples if sample["label"] == "B"]
-    tp = sum(sample["score"] >= threshold for sample in good)
-    tn = sum(sample["score"] < threshold for sample in bad)
-    sensitivity = tp / len(good) if good else 0.0
-    specificity = tn / len(bad) if bad else 0.0
-    balanced = (sensitivity + specificity) / 2.0 if good and bad else 0.0
+    tp = int(sum(bool(sample["score"] >= threshold) for sample in good))
+    tn = int(sum(bool(sample["score"] < threshold) for sample in bad))
+    sensitivity = float(tp / len(good)) if good else 0.0
+    specificity = float(tn / len(bad)) if bad else 0.0
+    balanced = float((sensitivity + specificity) / 2.0) if good and bad else 0.0
     return {
         "threshold": float(threshold),
         "good_count": len(good),
@@ -108,7 +112,10 @@ def write_outputs(report, metrics_csv, report_json):
             writer.writerow({"scope": "leave_one_object_out", **{key: metric.get(key, "") for key in ["held_out_object", *fields]}})
     report_json = Path(report_json)
     report_json.parent.mkdir(parents=True, exist_ok=True)
-    report_json.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+    report_json.write_text(
+        json.dumps(report, ensure_ascii=False, indent=2, allow_nan=False),
+        encoding="utf-8",
+    )
 
 
 def build_parser():
