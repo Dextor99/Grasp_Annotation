@@ -69,6 +69,15 @@ def _selected_records(records, state_index, topk, score_threshold):
     return ranked
 
 
+def _state_name(state_index, topk):
+    """Return a label matching the actual number of displayed grasps."""
+    if state_index == 0:
+        return "top1"
+    if state_index == 1:
+        return f"top{topk}"
+    return "high_quality"
+
+
 def show_interactive_sequence(
     models,
     topk=20,
@@ -118,7 +127,7 @@ def show_interactive_sequence(
         visualizer.update_renderer()
         current["model"] = model_index
         current["state"] = state_index
-        state_name = STATE_NAMES[state_index]
+        state_name = _state_name(state_index, topk)
         print(
             f"[{model_index + 1}/{len(prepared)}] {item['model']['name']} / "
             f"{state_name}: {len(records)} grasps"

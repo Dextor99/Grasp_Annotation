@@ -10,6 +10,13 @@ class GraspSequenceVisualizationTests(unittest.TestCase):
         self.assertAlmostEqual(args.score_threshold, 0.13)
         self.assertEqual(args.screenshot_dir, "results/formal-v1.2/interactive-screenshots")
 
+    def test_topk_state_label_matches_requested_count(self):
+        from scripts.visualize_grasp_sequence import _state_name
+
+        self.assertEqual(_state_name(0, 500), "top1")
+        self.assertEqual(_state_name(1, 500), "top500")
+        self.assertEqual(_state_name(2, 500), "high_quality")
+
     def test_sequence_advances_states_then_models(self):
         from scripts.visualize_grasp_sequence import advance_sequence_index
 
