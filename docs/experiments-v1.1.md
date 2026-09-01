@@ -20,6 +20,25 @@ KNN `30`，depth samples `16`。
 
 原始 CSV：`results/ours-main/ours_main_results.csv`。
 
+### 主实验 score 分布
+
+对 34,256 个 closure-valid unique candidates 的加权统计如下：
+
+| 指标 | 数值 |
+|---|---:|
+| Mean / median | 0.3679 / 0.5795 |
+| P10 / P25 / P75 / P90 / P95 | -0.8728 / 0.2378 / 0.7946 / 0.8865 / 0.9378 |
+| Score ≥ 0 | 27,798 (81.15%) |
+| Score ≥ 0.5 | 19,589 (57.18%) |
+| Score ≥ 0.8 | 8,238 (24.05%) |
+| Score ≥ 0.9 | 2,909 (8.49%) |
+| Score ≥ 0.95 | 1,348 (3.94%) |
+
+这里的 unique 数量表示几何上有效的候选集合，不等同于高质量标注数量；阈值统计可用于
+后续构造 score-filtered annotation subset。完整逐对象数据见
+`results/ours-main/ours_main_quality_stats.csv`，加权汇总见
+`results/ours-main/ours_main_quality_aggregate.csv`。
+
 ## 消融实验
 
 选择 `juxing`、`shuilongtou`、`cat`，统一使用 `3 views × 2 anchors/view`，仅改变
@@ -39,6 +58,19 @@ approach sampling mode：`global`、`normal`、`cone`。该设置用于控制消
 | cat | cone | 2,256 | 2,147 | 2,147 | 0.9822 | 0.9367 | 342.03 |
 
 原始 CSV：`results/ablation/ablation_results.csv`。
+
+消融集合共包含 9,468 个 unique candidates。加权 score 阈值比例为：
+
+| Score threshold | Count | Ratio |
+|---:|---:|---:|
+| ≥ 0 | 5,501 | 58.10% |
+| ≥ 0.5 | 3,636 | 38.40% |
+| ≥ 0.8 | 1,451 | 15.33% |
+| ≥ 0.9 | 506 | 5.34% |
+| ≥ 0.95 | 270 | 2.85% |
+
+完整数据见 `results/ablation/ablation_quality_stats.csv` 和
+`results/ablation/ablation_quality_aggregate.csv`。
 
 ## 可视化产物
 
