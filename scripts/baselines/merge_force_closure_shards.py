@@ -51,7 +51,13 @@ def merge(geometry_run: Path, shard_dir: Path, output: Path) -> dict:
     merged = np.asarray(labels["scores"], dtype=np.float32).reshape(-1).copy()
     merged[merged_ids] = merged_scores
     output.mkdir(parents=True, exist_ok=False)
+    scored_full = np.zeros(collision.size, dtype=bool)
+    error_full = np.zeros(collision.size, dtype=bool)
+    scored_full[merged_ids] = merged_scored
+    error_full[merged_ids] = merged_errors
     np.savez_compressed(output / "labels.npz", points=labels["points"], offsets=labels["offsets"], collision=collision, scores=merged.reshape(collision.shape))
+    np.save(output / "scored_mask.npy", scored_full.reshape(collision.shape), allow_pickle=False)
+    np.save(output / "error_mask.npy", error_full.reshape(collision.shape), allow_pickle=False)
     summary = {"geometry_valid_count": int(len(valid_ids)), "scored_count": int(merged_scored.sum()), "n_fc_errors": int(merged_errors.sum()), "duplicate_ids": int(len(duplicate_ids)), "missing_ids": int(len(missing_ids)), "extra_ids": int(len(extra_ids)), "n_fc_valid": int(np.count_nonzero(merged_scores >= 0.0))}
     (output / "summary.json").write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
     return summary

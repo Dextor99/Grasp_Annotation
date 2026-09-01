@@ -107,6 +107,39 @@ class GraspNetExecutionProtocolTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "finite"):
                 merge(geometry, shards, root / "merged")
 
+    def test_merge_exports_full_audit_masks(self):
+        from baselines.graspnet_annotation.config import DenseAnnotationConfig
+        from baselines.graspnet_annotation.label_arrays import RawLabelArrays
+        from scripts.baselines.merge_force_closure_shards import merge
+
+        config = DenseAnnotationConfig.full(num_views=1, num_angles=1, depths_m=(0.01, 0.02))
+        labels = RawLabelArrays.create(1, config)
+        labels.collision[:] = False
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            geometry = root / "geometry"
+            shards = root / "shards"
+            geometry.mkdir()
+            shards.mkdir()
+            np.savez_compressed(
+                geometry / "grasp_labels.npz",
+                points=labels.points,
+                offsets=labels.offsets,
+                collision=labels.collision,
+                scores=labels.scores,
+            )
+            np.savez_compressed(
+                shards / "fc_shard_000000.npz",
+                candidate_ids=np.array([0, 1], dtype=np.int64),
+                mu_min=np.array([0.1, 0.2], dtype=np.float32),
+                scored_mask=np.array([True, True], dtype=bool),
+                error_mask=np.array([False, False], dtype=bool),
+                elapsed_s=np.array(0.1, dtype=np.float64),
+            )
+            merge(geometry, shards, root / "merged")
+            self.assertTrue((root / "merged" / "scored_mask.npy").is_file())
+            self.assertTrue((root / "merged" / "error_mask.npy").is_file())
+
 
 if __name__ == "__main__":
     unittest.main()
