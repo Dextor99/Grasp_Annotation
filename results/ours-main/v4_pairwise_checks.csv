@@ -1,0 +1,5 @@
+case,score_a,score_b,expected,passed,margin,note,a_normal,a_support,a_stability,b_normal,b_support,b_stability
+A_center_large_support_vs_edge_small_support,0.9567920330585753,0.30628327399776184,A>B,True,0.6505087590608134,left must rank above right,0.98,0.9,0.9930796124903161,0.85,0.2,0.169013315406066
+B_slight_offset_good_antipodal_vs_center_bad_normals,0.4827446923028149,0.8793995045735613,B>A,True,-0.3966548122707464,good bilateral geometry must overcome small offset,0.45,0.25,1.0,0.95,0.8,0.8948393168143698
+C_large_support_vs_tiny_support,0.8636925722132479,0.3621578221720871,A>B,True,0.5015347500411609,bilateral support must dominate tiny support,0.9,0.8,0.8948393168143698,0.95,0.05,1.0
+D_local_stable_handle_vs_center_weak_support,0.7529929466963183,0.42358235842548936,A>B,True,0.329410588270829,local valid handle grasp may beat weak central grasp,0.95,0.9,0.49935178859927615,0.95,0.08,1.0

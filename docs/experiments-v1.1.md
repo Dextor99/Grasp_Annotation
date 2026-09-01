@@ -179,3 +179,35 @@ F:\Miniconda\envs\py310\python.exe scripts/rescore_v4.py `
 V4 Top-1 记录分别为 `cat=1588`、`huixing=21`、`juxing=4642`、`sanjiao=2365`、
 `shuilongtou=3596`、`yuanzhu=517`。逐抓取结果位于
 `results/ours-main/v4-rescore/`，汇总位于 `results/ours-main/v4_rescore_summary.csv`。
+
+## V4 组件贡献与 canonical 排序验证
+
+在冻结公式前，对六个模型的已有 V4 重评分结果进行了组件贡献、分布和排序检查：
+
+```powershell
+F:\Miniconda\envs\py310\python.exe scripts/analyze_v4_components.py `
+  --input-dir results\ours-main\v4-rescore `
+  --component-csv results\ours-main\v4_component_summary.csv `
+  --distribution-csv results\ours-main\v4_score_distribution.csv
+
+F:\Miniconda\envs\py310\python.exe scripts/validate_v4_ranking.py `
+  --output-csv results\ours-main\v4_pairwise_checks.csv
+```
+
+四个 canonical pairwise case（中心大支撑、轻微偏心但双侧几何更好、大支撑对小支撑、
+局部稳定柄部对中心弱支撑）全部通过。六个对象的 V4 Top-20 平均组件为：
+
+| Object | Normal | Support | Stability | V4 total |
+|---|---:|---:|---:|---:|
+| cat | 0.8649 | 0.0571 | 0.8075 | 0.3365 |
+| huixing | 0.9759 | 0.2205 | 0.8762 | 0.5714 |
+| juxing | 0.9774 | 0.2667 | 0.9344 | 0.6243 |
+| sanjiao | 0.8660 | 0.1298 | 0.7945 | 0.4446 |
+| shuilongtou | 0.9867 | 0.0848 | 0.9121 | 0.4226 |
+| yuanzhu | 0.8146 | 0.2097 | 0.7708 | 0.5058 |
+
+组件与 V4 排名的 Spearman 相关在六个模型中均为负值，说明更高的法向、支撑和稳定性
+总体都对应更靠前的结果；没有看到中心性单独决定全部排名的现象。完整组件汇总、分布和
+pairwise 结果分别位于 `results/ours-main/v4_component_summary.csv`、
+`results/ours-main/v4_score_distribution.csv` 和 `results/ours-main/v4_pairwise_checks.csv`。
+该验证仍不接入主流水线，也不定义 V4 HQ 阈值。

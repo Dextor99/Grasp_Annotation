@@ -59,6 +59,24 @@ def estimate_voxel_size_mm(object_data, max_points=2000):
     return float(np.median(finite))
 
 
+def compose_v4_score(normal, support, stability):
+    """Compose bounded V4 components with the frozen unweighted geometric mean."""
+    components = np.asarray([normal, support, stability], dtype=float)
+    if components.shape != (3,) or not np.all(np.isfinite(components)):
+        raise ValueError("V4 components must be three finite values")
+    components = np.clip(components, 0.0, 1.0)
+    return float(np.clip(np.prod(components) ** (1.0 / 3.0), 0.0, 1.0))
+
+
+def stability_from_center_distance(distance_normalized, stability_scale=DEFAULT_STABILITY_SCALE):
+    """Return the soft centrality prior used by the formal scorer."""
+    distance_normalized = float(distance_normalized)
+    stability_scale = float(stability_scale)
+    if not np.isfinite(distance_normalized) or not np.isfinite(stability_scale) or stability_scale <= 0:
+        raise ValueError("distance and stability scale must be finite; scale must be positive")
+    return float(np.exp(-((distance_normalized / stability_scale) ** 2)))
+
+
 def _empty_metrics(origin, object_data):
     center = np.asarray(getattr(object_data, "center", np.zeros(3)), dtype=float)
     distance = float(np.linalg.norm(origin - center))
@@ -198,7 +216,7 @@ def score_grasp_v4(
     radius = float(getattr(object_data, "radius", 0.0))
     center_distance_normalized = center_distance / radius if radius > 1e-9 else 0.0
     stability = float(np.exp(-((center_distance_normalized / max(float(stability_scale), 1e-9)) ** 2)))
-    total = float(np.clip((normal_score * support_score * stability) ** (1.0 / 3.0), 0.0, 1.0))
+    total = compose_v4_score(normal_score, support_score, stability)
     result.update(
         {
             "contact_points_left": int(np.count_nonzero(left_mask)),
