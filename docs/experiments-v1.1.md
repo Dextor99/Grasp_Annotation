@@ -109,3 +109,21 @@ F:\Miniconda\envs\py310\python.exe scripts/export_experiment_visualizations.py `
 主实验和消融实验的运行日志分别位于 `results/ours-main/logs/` 和
 `results/ablation/logs/`。结果目录包含 `grasps.json`、`grasps.npz` 和 `meta.json`，
 其中 `meta.json` 保存配置、候选漏斗计数及各阶段耗时。
+
+## Open3D 交互式线框查看
+
+使用下面的入口会打开可交互的三维 Open3D 窗口，默认依次加载 6 个主实验模型。每个
+模型按 `Top-1 → Top-20 → high-quality (score≥0.8)` 切换：
+
+```powershell
+F:\Miniconda\envs\py310\python.exe scripts/visualize_grasp_sequence.py
+```
+
+窗口操作：空格切换下一个状态，鼠标拖动旋转，滚轮缩放，`S` 保存当前视角截图，
+`Q` 或 `Esc` 退出。截图保存到 `results/interactive-screenshots/`。也可以通过重复
+`--model name=object_path=result_directory` 指定模型，例如：
+
+```powershell
+F:\Miniconda\envs\py310\python.exe scripts/visualize_grasp_sequence.py `
+  --model cat=model\colmap\cat.ply=results\ours-main\cat
+```
