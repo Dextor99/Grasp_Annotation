@@ -1,0 +1,43 @@
+{
+  "objects": [
+    {
+      "name": "model2",
+      "ours_ply": "model/2.ply",
+      "reference_mesh": "baselines/graspnet_annotation/assets/2/2_repaired.obj",
+      "sdf": "baselines/graspnet_annotation/assets/2/2_repaired.sdf",
+      "input_unit": "m"
+    },
+    {
+      "name": "juxing",
+      "ours_ply": "model/juxing.ply",
+      "source_mesh": "model/juxing.STL",
+      "input_unit": "mm"
+    },
+    {
+      "name": "yuanzhu",
+      "ours_ply": "model/yuanzhu.ply",
+      "input_unit": "mm"
+    },
+    {
+      "name": "sanjiao",
+      "ours_ply": "model/sanjiao.ply",
+      "input_unit": "mm"
+    },
+    {
+      "name": "huixing",
+      "ours_ply": "model/huixing.ply",
+      "input_unit": "mm"
+    },
+    {
+      "name": "shuilongtou",
+      "ours_ply": "model/shuilongtou.ply",
+      "source_mesh": "model/shuilongtou.STL",
+      "input_unit": "mm"
+    },
+    {
+      "name": "cat",
+      "ours_ply": "model/colmap/cat.ply",
+      "input_unit": "m"
+    }
+  ]
+}

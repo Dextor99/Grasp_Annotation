@@ -101,6 +101,21 @@ reported as exact full force-closure counts.
 
 ## Multi-object final aggregation
 
+Before running any additional object, inventory its paired reference assets:
+
+```powershell
+$env:PYTHONPATH=(Get-Location).Path
+F:\Miniconda\envs\graspnet_baseline_py39_clean\Scripts\python.exe `
+  scripts/common_eval/prepare_evaluation_assets.py `
+  --manifest configs/formal_evaluation_objects.json `
+  --output-dir results\common-eval\asset-inventory
+```
+
+The inventory classifies each object as `A_ready`, `A_mesh_needs_sdf`,
+`B_repair_and_sdf`, or `C_reference_required`.  It never reconstructs a mesh,
+uses a convex hull, or reuses another object's SDF.  Only an `A_ready` asset
+may enter the frozen comparison protocol.
+
 After each object has its own corrected comparison CSV, aggregate without
 rerunning either method:
 
