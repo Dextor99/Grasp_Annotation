@@ -116,3 +116,7 @@ cloud reduction from the same source points. The official 300 × 12 × 4
 candidate topology is unchanged. This mode intentionally cannot run
 force-closure; OBJ/SDF is reserved for the separate reference-backed quality
 subset.
+
+Geometry-only summaries expose `n_geometry_valid`, `geometry_valid_rate`, and
+`geometry_runtime_s`; these are the fields used by
+`scripts/common_eval/aggregate_ply_geometry.py` for the six-object table.
