@@ -36,7 +36,8 @@ def export_annotation_run(
     config: DenseAnnotationConfig | None = None,
 ) -> dict[str, Path]:
     output = Path(output)
-    if output.exists():
+    output_exists = output.exists()
+    if output_exists:
         if not output.is_dir():
             raise FileExistsError(f"Output path is not a directory: {output}")
         existing = {path.name for path in output.iterdir()}
@@ -62,7 +63,8 @@ def export_annotation_run(
     rows = [_json_safe(dict(row)) for row in timing_rows]
     fields = sorted({key for row in rows for key in row}) or ["stage", "seconds"]
 
-    output.mkdir(parents=True, exist_ok=False)
+    if not output_exists:
+        output.mkdir(parents=True, exist_ok=False)
     np.savez_compressed(output / "grasp_labels.npz", points=labels.points, offsets=labels.offsets, collision=labels.collision, scores=labels.scores)
     np.save(output / "valid_grasps.npy", labels.to_valid_grasps(config) if config is not None else np.empty((0, 17), dtype=np.float32), allow_pickle=False)
     (output / "summary.json").write_text(summary_text, encoding="utf-8")

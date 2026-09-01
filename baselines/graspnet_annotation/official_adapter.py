@@ -62,3 +62,39 @@ def load_dexnet_model(data_path: str | Path):
         return eval_utils.load_dexnet_model(str(Path(data_path)))
     except (ImportError, OSError, ValueError) as exc:
         raise OfficialBackendUnavailable(f"Unable to load official OBJ/SDF pair from {data_path}") from exc
+
+
+def evaluate_official_collision(
+    grasps: np.ndarray,
+    model_points_m: np.ndarray,
+    scene_points_m: np.ndarray | None = None,
+    *,
+    outlier_m: float = 0.05,
+    empty_thresh: int = 10,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Run the official GraspNet collision/empty test for one object.
+
+    ``grasps`` uses the official ``(quality, width, height, depth, R9, t3,
+    object_id)`` layout.  The helper deliberately does not require an SDF:
+    the official collision stage only needs the model and scene point cloud;
+    the paired OBJ/SDF is loaded later by the force-closure scorer.
+    """
+
+    grasps = np.asarray(grasps, dtype=np.float32)
+    model = np.asarray(model_points_m, dtype=np.float32)
+    scene = model if scene_points_m is None else np.asarray(scene_points_m, dtype=np.float32)
+    if grasps.ndim != 2 or grasps.shape[1] != 17:
+        raise ValueError(f"grasps must have shape (N, 17), got {grasps.shape}")
+    if model.ndim != 2 or model.shape[1] != 3 or len(model) == 0:
+        raise ValueError("model_points_m must be a non-empty (N, 3) array")
+    if scene.ndim != 2 or scene.shape[1] != 3 or len(scene) == 0:
+        raise ValueError("scene_points_m must be a non-empty (N, 3) array")
+    try:
+        eval_utils = importlib.import_module("graspnetAPI.utils.eval_utils")
+    except ImportError as exc:
+        raise OfficialBackendUnavailable("official collision evaluator is unavailable") from exc
+    collision, empty = eval_utils.collision_detection(
+        [grasps], [model], [None], [np.eye(4, dtype=np.float32)], scene,
+        outlier=float(outlier_m), empty_thresh=int(empty_thresh), return_dexgrasps=False,
+    )
+    return np.asarray(collision[0], dtype=bool), np.asarray(empty[0], dtype=bool)

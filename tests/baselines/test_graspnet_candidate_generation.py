@@ -1,8 +1,10 @@
 import unittest
+import importlib.util
 
 import numpy as np
 
 
+@unittest.skipUnless(importlib.util.find_spec("graspnetAPI"), "requires the dedicated GN-Full environment")
 class GraspNetCandidateGenerationTests(unittest.TestCase):
     def test_one_point_official_topology_has_14400_indexed_candidates(self):
         from baselines.graspnet_annotation.candidate_generation import iter_candidate_batches

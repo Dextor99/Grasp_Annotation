@@ -64,6 +64,19 @@ class GraspNetExportTests(unittest.TestCase):
                 {"grasp_labels.npz", "valid_grasps.npy", "summary.json", "timing.csv", "run_config.json"},
             )
 
+    def test_export_accepts_an_existing_empty_directory(self):
+        from baselines.graspnet_annotation.config import DenseAnnotationConfig
+        from baselines.graspnet_annotation.export import export_annotation_run
+        from baselines.graspnet_annotation.label_arrays import RawLabelArrays
+
+        config = DenseAnnotationConfig.full(num_views=1, num_angles=1, depths_m=(0.01,))
+        labels = RawLabelArrays.create(1, config)
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            output = Path(temporary_directory) / "run"
+            output.mkdir()
+            export_annotation_run(output, labels, {"units": "m"}, [], config=config)
+            self.assertTrue((output / "summary.json").is_file())
+
 
 if __name__ == "__main__":
     unittest.main()

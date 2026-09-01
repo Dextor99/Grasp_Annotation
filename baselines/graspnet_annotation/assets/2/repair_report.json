@@ -1,0 +1,7 @@
+{
+  "method": "in_place_repair",
+  "repaired_vertex_count": 2400,
+  "repaired_face_count": 1600,
+  "repaired_watertight": true,
+  "warning": null
+}

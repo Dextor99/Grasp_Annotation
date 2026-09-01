@@ -1,0 +1,10 @@
+{
+  "source_mesh": "model\\2.stl",
+  "source_unit": "mm",
+  "scale_to_metres": 0.001,
+  "source_vertex_count": 2400,
+  "source_face_count": 800,
+  "source_watertight": false,
+  "scaled_mesh": "2_scaled.obj",
+  "repaired_mesh": "2_repaired.obj"
+}
