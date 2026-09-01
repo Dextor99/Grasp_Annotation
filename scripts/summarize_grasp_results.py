@@ -20,6 +20,10 @@ SUMMARY_FIELDS = (
     "closure_pose_collision_rejected",
     "closure_valid_count",
     "unique_grasp_count",
+    "high_quality_threshold",
+    "high_quality_count",
+    "high_quality_ratio",
+    "high_quality_yield",
     "closure_acceptance_rate",
     "merge_retention_rate",
     "mean_score",
@@ -31,15 +35,24 @@ SUMMARY_FIELDS = (
     "total_s",
 )
 
+HIGH_QUALITY_THRESHOLD = 0.8
+
 
 def _safe_rate(numerator, denominator):
     return float(numerator) / float(denominator) if denominator else 0.0
 
 
-def _score_metrics(result_directory):
+def _score_metrics(result_directory, high_quality_threshold=HIGH_QUALITY_THRESHOLD):
     path = Path(result_directory) / "grasps.json"
     if not path.is_file():
-        return {"mean_score": None, "top1_score": None, "top20_mean_score": None}
+        return {
+            "mean_score": None,
+            "top1_score": None,
+            "top20_mean_score": None,
+            "high_quality_threshold": high_quality_threshold,
+            "high_quality_count": 0,
+            "high_quality_ratio": 0.0,
+        }
     records = json.loads(path.read_text(encoding="utf-8"))
     scores = [
         float(record["score_total"])
@@ -49,16 +62,26 @@ def _score_metrics(result_directory):
         and math.isfinite(float(record["score_total"]))
     ]
     if not scores:
-        return {"mean_score": None, "top1_score": None, "top20_mean_score": None}
+        return {
+            "mean_score": None,
+            "top1_score": None,
+            "top20_mean_score": None,
+            "high_quality_threshold": high_quality_threshold,
+            "high_quality_count": 0,
+            "high_quality_ratio": 0.0,
+        }
     top20 = scores[:20]
     return {
         "mean_score": sum(scores) / len(scores),
         "top1_score": scores[0],
         "top20_mean_score": sum(top20) / len(top20),
+        "high_quality_threshold": high_quality_threshold,
+        "high_quality_count": sum(score >= high_quality_threshold for score in scores),
+        "high_quality_ratio": sum(score >= high_quality_threshold for score in scores) / len(scores),
     }
 
 
-def summarize_result_directory(result_directory):
+def summarize_result_directory(result_directory, high_quality_threshold=HIGH_QUALITY_THRESHOLD):
     """Read one ``meta.json`` and return stable experiment statistics."""
     result_directory = Path(result_directory)
     meta_path = result_directory / "meta.json"
@@ -92,7 +115,10 @@ def summarize_result_directory(result_directory):
         "merge_s": timings.get("merge_s"),
         "total_s": timings.get("total_s"),
     }
-    summary.update(_score_metrics(result_directory))
+    summary.update(_score_metrics(result_directory, high_quality_threshold))
+    summary["high_quality_yield"] = _safe_rate(
+        summary["high_quality_count"], generated
+    )
     return summary
 
 
@@ -120,12 +146,15 @@ def build_parser():
     parser.add_argument("results", nargs="+", help="Result directories containing meta.json")
     parser.add_argument("--output", default=None, help="Optional CSV/JSON output path")
     parser.add_argument("--format", choices=("csv", "json"), default="csv")
+    parser.add_argument("--hq-threshold", type=float, default=HIGH_QUALITY_THRESHOLD)
     return parser
 
 
 def main(arguments=None):
     args = build_parser().parse_args(arguments)
-    rows = [summarize_result_directory(path) for path in args.results]
+    if not math.isfinite(args.hq_threshold):
+        raise ValueError("--hq-threshold must be finite")
+    rows = [summarize_result_directory(path, args.hq_threshold) for path in args.results]
     _write_summary(rows, args.output, args.format)
     return 0
 

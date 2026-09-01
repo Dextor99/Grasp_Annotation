@@ -32,8 +32,8 @@ class GraspQualityAnalysisTests(unittest.TestCase):
             )
             input_csv = root / "input.csv"
             input_csv.write_text(
-                "result_dir,object\n"
-                f"{result_dir.as_posix()},model/cat.ply\n",
+                "result_dir,object,generated_candidate_count\n"
+                f"{result_dir.as_posix()},model/cat.ply,10\n",
                 encoding="utf-8",
             )
             output_csv = root / "quality.csv"
@@ -42,6 +42,7 @@ class GraspQualityAnalysisTests(unittest.TestCase):
 
             self.assertEqual(len(rows), 1)
             self.assertEqual(rows[0]["unique_grasp_count"], 2)
+            self.assertAlmostEqual(rows[0]["high_quality_yield"], 0.1)
             self.assertTrue(output_csv.is_file())
 
     def test_writes_weighted_aggregate_statistics(self):
@@ -57,8 +58,8 @@ class GraspQualityAnalysisTests(unittest.TestCase):
             )
             input_csv = root / "input.csv"
             input_csv.write_text(
-                "result_dir,object\n"
-                f"{result_dir.as_posix()},model/object.ply\n",
+                "result_dir,object,generated_candidate_count\n"
+                f"{result_dir.as_posix()},model/object.ply,10\n",
                 encoding="utf-8",
             )
             output_csv = root / "quality.csv"
@@ -70,6 +71,8 @@ class GraspQualityAnalysisTests(unittest.TestCase):
                 aggregate = list(__import__("csv").DictReader(handle))[0]
             self.assertEqual(aggregate["unique_grasp_count"], "2")
             self.assertEqual(aggregate["score_ge_0_8_count"], "1")
+            self.assertEqual(aggregate["generated_candidate_count"], "10")
+            self.assertEqual(aggregate["high_quality_yield"], "0.1")
 
 
 if __name__ == "__main__":

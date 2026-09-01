@@ -86,13 +86,19 @@ def analyze_csv(input_csv, output_csv, aggregate_csv=None):
         source_rows = list(csv.DictReader(handle))
     rows = []
     all_records = []
+    total_generated = 0
+    total_closure_valid = 0
     for source in source_rows:
         result_dir = _resolve_result_dir(source["result_dir"], input_csv)
         records = _load_records(result_dir)
         all_records.extend(records)
+        total_generated += int(source.get("generated_candidate_count", 0) or 0)
+        total_closure_valid += int(source.get("closure_valid_count", 0) or 0)
         row = {
             "result_dir": source["result_dir"],
             "object": source.get("object", ""),
+            "generated_candidate_count": int(source.get("generated_candidate_count", 0) or 0),
+            "closure_valid_count": int(source.get("closure_valid_count", 0) or 0),
         }
         meta_path = result_dir / "meta.json"
         if meta_path.is_file():
@@ -107,6 +113,10 @@ def analyze_csv(input_csv, output_csv, aggregate_csv=None):
                 }
             )
         row.update(compute_score_statistics(records))
+        row["high_quality_yield"] = float(
+            row["score_ge_0_8_count"] / row["generated_candidate_count"]
+            if row["generated_candidate_count"] else 0.0
+        )
         rows.append(row)
 
     _write_rows(output_csv, rows)
@@ -117,8 +127,14 @@ def analyze_csv(input_csv, output_csv, aggregate_csv=None):
             "mode": "mixed",
             "num_views": "",
             "anchors_per_view": "",
+            "generated_candidate_count": total_generated,
+            "closure_valid_count": total_closure_valid,
         }
         aggregate.update(compute_score_statistics(all_records))
+        aggregate["high_quality_yield"] = float(
+            aggregate["score_ge_0_8_count"] / total_generated
+            if total_generated else 0.0
+        )
         _write_rows(aggregate_csv, [aggregate])
     return rows
 

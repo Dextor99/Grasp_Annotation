@@ -9,20 +9,21 @@ SE(3) 去重（平移 5 mm、旋转 10°）。
 固定参数：`5 views × 3 anchors/view × 5 approaches`，cone angle `15°`，normal
 KNN `30`，depth samples `16`。
 
-| Object | Generated | Closure-valid | Unique | Closure rate | Merge retention | Mean score | Top-1 | Top-20 mean | Total (s) |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| juxing | 7,504 | 7,475 | 7,129 | 99.61% | 95.37% | 0.6913 | 0.9953 | 0.9899 | 597.21 |
-| yuanzhu | 4,132 | 3,997 | 3,948 | 96.73% | 98.77% | 0.6864 | 1.0000 | 0.9999 | 565.82 |
-| sanjiao | 8,757 | 8,599 | 8,412 | 98.20% | 97.83% | 0.6095 | 0.9996 | 0.9983 | 1,053.92 |
-| huixing | 3,849 | 3,730 | 3,730 | 96.91% | 100.00% | 0.5776 | 0.9902 | 0.9851 | 606.17 |
-| shuilongtou | 12,197 | 11,923 | 6,061 | 97.75% | 50.83% | -0.5638 | 0.9966 | 0.9966 | 870.24 |
-| cat | 5,527 | 5,237 | 4,976 | 94.75% | 95.02% | 0.2214 | 0.9781 | 0.9753 | 832.88 |
+| Object | Generated | Closure-valid | Unique | HQ≥0.8 | HQ/Unique | HQ/Generated | Top-20 mean |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| juxing | 7,504 | 7,475 | 7,129 | 2,555 | 35.84% | 34.05% | 0.9899 |
+| yuanzhu | 4,132 | 3,997 | 3,948 | 1,481 | 37.51% | 35.84% | 0.9999 |
+| sanjiao | 8,757 | 8,599 | 8,412 | 2,368 | 28.15% | 27.04% | 0.9983 |
+| huixing | 3,849 | 3,730 | 3,730 | 811 | 21.74% | 21.07% | 0.9851 |
+| shuilongtou | 12,197 | 11,923 | 6,061 | 713 | 11.76% | 5.85% | 0.9966 |
+| cat | 5,527 | 5,237 | 4,976 | 310 | 6.23% | 5.61% | 0.9753 |
 
 原始 CSV：`results/ours-main/ours_main_results.csv`。
 
 ### 主实验 score 分布
 
-对 34,256 个 closure-valid unique candidates 的加权统计如下：
+对 34,256 个 closure-valid unique candidates 的加权统计如下；相对于 41,966 个
+generated candidates 的 HQ yield 为 19.63%。
 
 | 指标 | 数值 |
 |---|---:|
@@ -30,7 +31,7 @@ KNN `30`，depth samples `16`。
 | P10 / P25 / P75 / P90 / P95 | -0.8728 / 0.2378 / 0.7946 / 0.8865 / 0.9378 |
 | Score ≥ 0 | 27,798 (81.15%) |
 | Score ≥ 0.5 | 19,589 (57.18%) |
-| Score ≥ 0.8 | 8,238 (24.05%) |
+| Score ≥ 0.8 | 8,238 (24.05% of unique; 19.63% of generated) |
 | Score ≥ 0.9 | 2,909 (8.49%) |
 | Score ≥ 0.95 | 1,348 (3.94%) |
 
@@ -45,17 +46,17 @@ KNN `30`，depth samples `16`。
 approach sampling mode：`global`、`normal`、`cone`。该设置用于控制消融运行时间，
 不是主实验参数。
 
-| Object | Mode | Generated | Closure-valid | Unique | Top-1 | Top-20 mean | Total (s) |
+| Object | Mode | Generated | Closure-valid | Unique | HQ≥0.8 | HQ/Generated | Top-20 mean |
 |---|---|---:|---:|---:|---:|---:|---:|
-| juxing | global | 288 | 281 | 281 | 0.9950 | 0.9750 | 20.41 |
-| juxing | normal | 536 | 535 | 535 | 0.9673 | 0.9666 | 38.56 |
-| juxing | cone | 2,647 | 2,636 | 2,615 | 0.9712 | 0.9687 | 235.11 |
-| shuilongtou | global | 472 | 467 | 276 | 0.4305 | 0.0290 | 26.40 |
-| shuilongtou | normal | 949 | 920 | 491 | 0.9964 | 0.9802 | 63.02 |
-| shuilongtou | cone | 4,726 | 4,542 | 2,420 | 0.9964 | 0.9961 | 365.83 |
-| cat | global | 284 | 273 | 273 | 0.9321 | 0.8724 | 35.49 |
-| cat | normal | 459 | 430 | 430 | 0.9573 | 0.8745 | 61.14 |
-| cat | cone | 2,256 | 2,147 | 2,147 | 0.9822 | 0.9367 | 342.03 |
+| juxing | global | 288 | 281 | 281 | 94 | 32.64% | 0.9750 |
+| juxing | normal | 536 | 535 | 535 | 156 | 29.10% | 0.9666 |
+| juxing | cone | 2,647 | 2,636 | 2,615 | 838 | 31.66% | 0.9687 |
+| shuilongtou | global | 472 | 467 | 276 | 0 | 0.00% | 0.0290 |
+| shuilongtou | normal | 949 | 920 | 491 | 37 | 3.90% | 0.9802 |
+| shuilongtou | cone | 4,726 | 4,542 | 2,420 | 169 | 3.58% | 0.9961 |
+| cat | global | 284 | 273 | 273 | 23 | 8.10% | 0.8724 |
+| cat | normal | 459 | 430 | 430 | 21 | 4.58% | 0.8745 |
+| cat | cone | 2,256 | 2,147 | 2,147 | 113 | 5.01% | 0.9367 |
 
 原始 CSV：`results/ablation/ablation_results.csv`。
 
@@ -71,6 +72,9 @@ approach sampling mode：`global`、`normal`、`cone`。该设置用于控制消
 
 完整数据见 `results/ablation/ablation_quality_stats.csv` 和
 `results/ablation/ablation_quality_aggregate.csv`。
+
+本轮实验冻结 `HIGH_QUALITY_THRESHOLD = 0.8`。统计脚本默认使用该阈值，也支持通过
+`--hq-threshold` 显式覆盖；正式主表和消融表均使用 `0.8`，避免事后挑选阈值。
 
 ## 可视化产物
 
