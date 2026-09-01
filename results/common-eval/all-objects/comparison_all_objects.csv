@@ -1,0 +1,3 @@
+object,method,n_raw_candidates,n_unique_outputs,n_geometry_valid,geometry_valid_rate,common_eval_count,fc_yield_raw,hq_yield_raw,hq_rate_among_fc,mean_mu,native_runtime_s,common_eval_runtime_s,evaluation_mode
+model2,GN-Full-10k-subset,9921600,,2126959,0.21437661264312208,10000,0.035879577314718795,0.008630790636686864,0.24054883815886743,0.5691921934797554,1888.0137583,829.7434586,weighted_stratified_10k
+model2,Ours-v1.2-common,11167,5689,2430,0.4271400949200211,5689,0.04441658457956479,0.014775678337960061,0.3326612903225806,0.4951612967396936,1407.841628999915,122.7930844,common_official_all_unique

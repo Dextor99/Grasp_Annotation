@@ -1,0 +1,3 @@
+method,n_objects,mean_n_raw_candidates,std_n_raw_candidates,mean_fc_yield_raw,std_fc_yield_raw,mean_hq_yield_raw,std_hq_yield_raw,mean_hq_rate_among_fc,std_hq_rate_among_fc,mean_mean_mu,std_mean_mu,mean_native_runtime_s,std_native_runtime_s
+GN-Full-10k-subset,1,9921600.0,0.0,0.035879577314718795,0.0,0.008630790636686864,0.0,0.24054883815886743,0.0,0.5691921934797554,0.0,1888.0137583,0.0
+Ours-v1.2-common,1,11167.0,0.0,0.04441658457956479,0.0,0.014775678337960061,0.0,0.3326612903225806,0.0,0.4951612967396936,0.0,1407.841628999915,0.0

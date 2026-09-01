@@ -98,3 +98,23 @@ F:\Miniconda\envs\py39\python.exe scripts/common_eval/build_comparison.py `
 Rows derived from the 10k subset include explicit `estimated_*` columns.  They
 are extrapolations using the exact full geometry-valid ratio and must not be
 reported as exact full force-closure counts.
+
+## Multi-object final aggregation
+
+After each object has its own corrected comparison CSV, aggregate without
+rerunning either method:
+
+```powershell
+$env:PYTHONPATH=(Get-Location).Path
+F:\Miniconda\envs\py310\python.exe `
+  scripts/common_eval/aggregate_object_comparisons.py `
+  --object-csv model2=results\common-eval\model2-comparison-corrected.csv `
+  --output-dir results\common-eval\all-objects
+```
+
+Repeat `--object-csv OBJECT=CSV` for every completed object.  The detail file
+is `comparison_all_objects.csv`; `comparison_summary.csv` reports per-method
+mean and population standard deviation for raw candidates, FC/HQ yield, HQ
+rate, mean :math:`\mu`, and native runtime.  GN rows backed by the fixed
+10k protocol are labelled `weighted_stratified_10k`; only a completed exact
+run is labelled `full_exact`.
