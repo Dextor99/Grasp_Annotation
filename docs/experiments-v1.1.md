@@ -143,3 +143,39 @@ F:\Miniconda\envs\py310\python.exe scripts/visualize_grasp_sequence.py `
 这只验证 ranking diagnosis，不替换当前 `score_total`，也不重新生成 grasp。完整每个
 grasp 的诊断字段位于本地 `results/ours-main/v4-diagnostics/`，汇总表为
 `results/ours-main/v4_diagnostics_summary.csv`。
+
+## Formal V4 离线重评分（不替换 V3 流水线）
+
+为验证“旧评分导致边缘 Top-1”的诊断，新增 `grasp_score_v4.py`。它只读取已有
+`grasps.json`，不重新生成候选、不修改碰撞和闭合修正，也不覆盖 `score_total`。
+V4 使用 `2.5 * voxel_size` 接触带、双侧稳健（median）法向、左右支撑面积的几何均值，
+以及以物体半径归一化的软中心性；最终分数为三个分量的无权几何均值：
+`score_total_v4 = (score_v4_normal * score_v4_support * score_v4_stability) ** (1/3)`。
+`score_v4_normal_dispersion` 是法向一致性分数（越大越一致），原 V3 分数保存在
+`score_total_v3` 中。
+
+重评分命令：
+
+```powershell
+F:\Miniconda\envs\py310\python.exe scripts/rescore_v4.py `
+  --input-csv results\ours-main\v4_diagnostics_summary.csv `
+  --output-dir results\ours-main\v4-rescore `
+  --summary-csv results\ours-main\v4_rescore_summary.csv `
+  --topk 20
+```
+
+本次六个对象的 V4 Top-20 汇总如下。该表用于确认排名趋势，V4 分数与 V3 分数不作
+数值等价比较；在把 V4 接入生成流水线前仍需完成固定的 canonical grasp 验收。
+
+| Object | V3 Top-20 center/R | V4 Top-20 center/R | V3 Top-20 support | V4 Top-20 support | V3 Top-20 normal | V4 Top-20 normal | Top-20 overlap |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| cat | 0.6897 | 0.2676 | 0.0254 | 0.0571 | 0.6321 | 0.8649 | 0 |
+| huixing | 0.1993 | 0.2048 | 0.1276 | 0.2205 | 0.9925 | 0.9759 | 2 |
+| juxing | 0.4421 | 0.1527 | 0.0312 | 0.2667 | 0.7233 | 0.9774 | 0 |
+| sanjiao | 0.2878 | 0.2825 | 0.0102 | 0.1298 | 0.6561 | 0.8660 | 0 |
+| shuilongtou | 0.8951 | 0.1670 | 0.0126 | 0.0848 | 0.6257 | 0.9867 | 0 |
+| yuanzhu | 0.2527 | 0.3044 | 0.0510 | 0.2097 | 0.9650 | 0.8146 | 0 |
+
+V4 Top-1 记录分别为 `cat=1588`、`huixing=21`、`juxing=4642`、`sanjiao=2365`、
+`shuilongtou=3596`、`yuanzhu=517`。逐抓取结果位于
+`results/ours-main/v4-rescore/`，汇总位于 `results/ours-main/v4_rescore_summary.csv`。
