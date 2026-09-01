@@ -127,3 +127,19 @@ F:\Miniconda\envs\py310\python.exe scripts/visualize_grasp_sequence.py
 F:\Miniconda\envs\py310\python.exe scripts/visualize_grasp_sequence.py `
   --model cat=model\colmap\cat.ply=results\ours-main\cat
 ```
+
+## 评分诊断验证（不改核心算法）
+
+对已有 `grasps.json` 离线计算接触带法向、双侧支撑、归一化中心距离和稳定性，
+并将旧排名与诊断排名的 Top-20 进行比较。诊断结果显示旧排名的 Top-20 明显偏离
+物体中心，而诊断排名降低了中心距离并提高了双侧法向一致性：
+
+| Object | Old center/R | Diagnostic center/R | Old support | Diagnostic support | Old normal | Diagnostic normal |
+|---|---:|---:|---:|---:|---:|---:|
+| juxing | 0.4421 | 0.1412 | 0.0652 | 0.2661 | 0.7764 | 0.9841 |
+| shuilongtou | 0.8951 | 0.1469 | 0.0259 | 0.0973 | 0.3574 | 0.9704 |
+| cat | 0.6897 | 0.1515 | 0.0437 | 0.0549 | 0.5841 | 0.9294 |
+
+这只验证 ranking diagnosis，不替换当前 `score_total`，也不重新生成 grasp。完整每个
+grasp 的诊断字段位于本地 `results/ours-main/v4-diagnostics/`，汇总表为
+`results/ours-main/v4_diagnostics_summary.csv`。
