@@ -116,6 +116,24 @@ The inventory classifies each object as `A_ready`, `A_mesh_needs_sdf`,
 uses a convex hull, or reuses another object's SDF.  Only an `A_ready` asset
 may enter the frozen comparison protocol.
 
+For the formal same-surface-input protocol, run the fixed reconstruction
+pipeline on the selected PLY objects:
+
+```powershell
+F:\Miniconda\envs\py310\python.exe `
+  scripts/common_eval/reconstruct_ply_reference.py `
+  --manifest configs\formal_evaluation_objects.json `
+  --output-root baselines\graspnet_annotation\assets\reconstructed `
+  --object model2 --object juxing --object shuilongtou `
+  --object yuanzhu --object huixing --object cat
+```
+
+Each object receives `reference_reconstructed.obj` and `asset_report.json`.
+The report must show `watertight=true`, acceptable normalized p95 surface
+error, and an existing 100³/5-padding SDF before the object is admitted to
+GN-style evaluation.  If the fixed reconstruction fails these gates, report
+the object as unavailable rather than tuning reconstruction parameters for it.
+
 After each object has its own corrected comparison CSV, aggregate without
 rerunning either method:
 
