@@ -22,6 +22,14 @@ SCORE_FIELDS = (
     "score_angle_diff",
 )
 
+V4_SCORE_FIELDS = (
+    "score_v4_normal",
+    "score_v4_support",
+    "score_v4_stability",
+    "score_v4_normal_dispersion",
+    "score_total_v4",
+)
+
 
 def _finite_float(value, field):
     if not isinstance(value, Real) or not np.isfinite(float(value)):
@@ -139,7 +147,12 @@ def normalize_grasp_record(grasp):
         "closure_geometry_valid": bool(grasp.get("closure_geometry_valid", True)),
         "closure_pose_valid": bool(grasp.get("closure_pose_valid", True)),
         "depth_mm": _finite_float(grasp.get("depth"), "depth"),
-        "score_total": _finite_float(grasp.get("score_total"), "score_total"),
+        "score_total": _finite_float(
+            grasp.get("score_total_v4", grasp.get("score_total")), "score_total"
+        ),
+        "score_total_v3": _finite_float(
+            grasp.get("score_total_v3", grasp.get("score_total")), "score_total_v3"
+        ),
         "view_id": _source_int(grasp["view_id"], "view_id"),
         "anchor_id": _source_int(grasp["anchor_id"], "anchor_id"),
         "approach_id": _source_int(grasp["approach_id"], "approach_id"),
@@ -157,6 +170,13 @@ def normalize_grasp_record(grasp):
             grasp["approach_offset_deg"], "approach_offset_deg"
         )
     for field in SCORE_FIELDS:
+        value = grasp.get(field)
+        record[field] = (
+            float(value)
+            if isinstance(value, Real) and np.isfinite(float(value))
+            else None
+        )
+    for field in V4_SCORE_FIELDS:
         value = grasp.get(field)
         record[field] = (
             float(value)

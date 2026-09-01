@@ -211,3 +211,26 @@ F:\Miniconda\envs\py310\python.exe scripts/validate_v4_ranking.py `
 pairwise 结果分别位于 `results/ours-main/v4_component_summary.csv`、
 `results/ours-main/v4_score_distribution.csv` 和 `results/ours-main/v4_pairwise_checks.csv`。
 该验证仍不接入主流水线，也不定义 V4 HQ 阈值。
+
+## V4 主流程集成 smoke
+
+V4 已正式放到闭合修正和后验证之后、SE(3) 合并之前。主流程固定为：
+
+```text
+Generate → V3 auxiliary score → Closure refine → Post-refinement validation
+→ V4 score → V4-based symmetry-aware merge → Normalize/export
+```
+
+最终导出记录的 `score_total` 为 V4，旧分数保存在 `score_total_v3`；`meta.json` 增加
+`score_version: "v4"`，NPZ 同时保存 `scores_total_v3`、`scores_total_v4` 和三个 V4 分量。
+
+小规模真实对象 smoke（`1 view × 2 anchors × 5 approaches`）结果：
+
+| Object | Raw after validation | Unique after V4 merge | Score version | Export |
+|---|---:|---:|---|---|
+| juxing | 1,028 | 1,028 | v4 | passed |
+| shuilongtou | 1,524 | 790 | v4 | passed |
+| cat | 632 | 632 | v4 | passed |
+
+结果目录为 `results/v4-integration-smoke/<object>/`。这三组结果用于验证集成链路，
+不覆盖原有 `v1.1` 实验目录；正式六对象重跑应在此 smoke 通过后单独执行。

@@ -72,6 +72,28 @@ class GraspSchemaTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             normalize_grasp_record(grasp)
 
+    def test_exports_v4_total_as_final_score_and_preserves_v3(self):
+        from grasp_schema import normalize_grasp_record
+
+        grasp = self._grasp()
+        grasp.update(
+            {
+                "score_total_v3": 0.91,
+                "score_total_v4": 0.37,
+                "score_v4_normal": 0.8,
+                "score_v4_support": 0.2,
+                "score_v4_stability": 0.9,
+                "score_v4_normal_dispersion": 0.95,
+            }
+        )
+
+        record = normalize_grasp_record(grasp)
+
+        self.assertEqual(record["score_total"], 0.37)
+        self.assertEqual(record["score_total_v3"], 0.91)
+        self.assertEqual(record["score_total_v4"], 0.37)
+        self.assertEqual(record["score_v4_support"], 0.2)
+
     def test_numpy_provenance_ids_are_converted_to_json_safe_ints(self):
         from grasp_schema import normalize_grasp_record
 

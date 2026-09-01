@@ -41,6 +41,9 @@ class GraspPipelineTests(unittest.TestCase):
             "grasp_pipeline.validate_refined_grasp_closures",
             side_effect=lambda *args, **kwargs: events.append("validate") or scored,
         ) as validate, patch(
+            "grasp_pipeline.score_grasps_v4",
+            side_effect=lambda *args, **kwargs: events.append("v4") or scored,
+        ), patch(
             "grasp_pipeline.merge_grasp_candidates",
             side_effect=lambda *args, **kwargs: events.append("merge") or unique,
         ) as merge, patch(
@@ -52,8 +55,9 @@ class GraspPipelineTests(unittest.TestCase):
 
         self.assertEqual(
             events[:7],
-            ["determinism", "prepare", "generate", "score", "refine", "validate", "merge"],
+            ["determinism", "prepare", "generate", "score", "refine", "validate", "v4"],
         )
+        self.assertEqual(events[7], "merge")
         self.assertEqual(result.raw_grasps, [{"id": 1}, {"id": 2}])
         self.assertEqual(result.unique_grasps, [{"id": 1}])
         self.assertEqual(result.meta["raw_grasp_count"], 2)
@@ -77,9 +81,48 @@ class GraspPipelineTests(unittest.TestCase):
         self.assertIs(generate.call_args.kwargs["config"], config)
         self.assertEqual(merge.call_args.kwargs["translation_threshold_mm"], 5.0)
         self.assertEqual(merge.call_args.kwargs["rotation_threshold_deg"], 10.0)
+        self.assertEqual(merge.call_args.kwargs["score_key"], "score_total_v4")
         self.assertEqual(refine.call_args.kwargs["margin_mm"], 2.0)
         self.assertIs(validate.call_args.kwargs["point_cloud"], object_data.cloud_down)
         self.assertEqual(validate.call_args.kwargs["threshold_mm"], 3.0)
+
+    def test_v4_scores_after_validation_and_merges_by_v4_score(self):
+        from grasp_pipeline import run_grasp_annotation
+
+        events = []
+        object_data = SimpleNamespace(
+            scale=1.0,
+            points=np.zeros((4, 3)),
+            normals=np.zeros((4, 3)),
+            center=np.zeros(3),
+            radius=10.0,
+            cloud_down=object(),
+            T_object_world=np.eye(4),
+        )
+        candidate = {"id": 1, "score_total": 0.8}
+        v4_candidate = {"id": 1, "score_total": 0.8, "score_total_v3": 0.8, "score_total_v4": 0.9}
+
+        with patch("grasp_pipeline.configure_determinism"), patch(
+            "grasp_pipeline.prepare_object", return_value=object_data
+        ), patch(
+            "grasp_pipeline.generate_multi_view_grasps", return_value=[candidate]
+        ), patch(
+            "grasp_pipeline.score_grasp_candidates", side_effect=lambda *args: events.append("v3") or [candidate]
+        ), patch(
+            "grasp_pipeline.refine_grasp_closures", side_effect=lambda *args, **kwargs: events.append("refine") or [candidate]
+        ), patch(
+            "grasp_pipeline.validate_refined_grasp_closures", side_effect=lambda *args, **kwargs: events.append("validate") or [candidate]
+        ), patch(
+            "grasp_pipeline.score_grasps_v4", side_effect=lambda *args, **kwargs: events.append("v4") or [v4_candidate]
+        ), patch(
+            "grasp_pipeline.merge_grasp_candidates", side_effect=lambda *args, **kwargs: events.append(("merge", kwargs["score_key"])) or [v4_candidate]
+        ), patch(
+            "grasp_pipeline.normalize_grasp_record", side_effect=lambda grasp: {"id": grasp["id"], "score_total": grasp.get("score_total_v4", 0.0)}
+        ):
+            result = run_grasp_annotation("model/object.ply", config=GraspGenerationConfig(num_views=1, anchors_per_view=1))
+
+        self.assertEqual(events, ["v3", "refine", "validate", "v4", ("merge", "score_total_v4")])
+        self.assertEqual(result.meta["score_version"], "v4")
 
 
 if __name__ == "__main__":

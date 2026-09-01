@@ -144,21 +144,27 @@ def score_grasp_v4(
     normals_world = np.asarray(getattr(object_data, "normals", []), dtype=float)
     if points_world.ndim != 2 or points_world.shape[1] != 3 or points_world.shape != normals_world.shape:
         raise ValueError("object_data points and normals must both have shape (N, 3)")
-    try:
-        translation = np.asarray(record["translation"], dtype=float)
-        rotation_pose = np.asarray(record["rotation_matrix"], dtype=float)
-    except (KeyError, TypeError, ValueError) as error:
-        raise ValueError(f"invalid grasp pose: {error}") from error
-    if translation.shape != (3,) or rotation_pose.shape != (3, 3):
-        raise ValueError("translation must have shape (3,) and rotation_matrix (3,3)")
-    if not np.all(np.isfinite(translation)) or not np.all(np.isfinite(rotation_pose)):
-        raise ValueError("grasp pose must be finite")
+    if "T_gripper_object" in record and "translation" not in record:
+        pose_object = np.asarray(record["T_gripper_object"], dtype=float)
+        if pose_object.shape != (4, 4) or not np.all(np.isfinite(pose_object)):
+            raise ValueError("T_gripper_object must be a finite (4,4) matrix")
+    else:
+        try:
+            translation = np.asarray(record["translation"], dtype=float)
+            rotation_pose = np.asarray(record["rotation_matrix"], dtype=float)
+        except (KeyError, TypeError, ValueError) as error:
+            raise ValueError(f"invalid grasp pose: {error}") from error
+        if translation.shape != (3,) or rotation_pose.shape != (3, 3):
+            raise ValueError("translation must have shape (3,) and rotation_matrix (3,3)")
+        if not np.all(np.isfinite(translation)) or not np.all(np.isfinite(rotation_pose)):
+            raise ValueError("grasp pose must be finite")
+        pose_object = np.block(
+            [[rotation_pose, translation[:, None]], [np.zeros((1, 3)), np.ones((1, 1))]]
+        )
     object_world = np.asarray(getattr(object_data, "T_object_world", np.eye(4)), dtype=float)
     if object_world.shape != (4, 4) or not np.all(np.isfinite(object_world)):
         raise ValueError("object_data.T_object_world must be a finite (4,4) matrix")
-    pose_world = object_world @ np.block(
-        [[rotation_pose, translation[:, None]], [np.zeros((1, 3)), np.ones((1, 1))]]
-    )
+    pose_world = object_world @ pose_object
     rotation = pose_world[:3, :3]
     origin = pose_world[:3, 3]
     points_local = (rotation.T @ (points_world - origin).T).T

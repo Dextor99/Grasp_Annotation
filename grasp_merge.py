@@ -22,10 +22,10 @@ def _validated_pose(grasp):
     return transform
 
 
-def _validated_score(grasp):
-    score = grasp.get("score_total")
+def _validated_score(grasp, score_key="score_total"):
+    score = grasp.get(score_key)
     if not isinstance(score, Real) or not np.isfinite(float(score)):
-        raise ValueError("each grasp must contain a finite score_total")
+        raise ValueError(f"each grasp must contain a finite {score_key}")
     return float(score)
 
 
@@ -105,6 +105,7 @@ def merge_grasp_candidates(
     grasps,
     translation_threshold_mm=5.0,
     rotation_threshold_deg=10.0,
+    score_key="score_total",
 ):
     """Greedily merge lower-scored poses close to a higher-scored representative.
 
@@ -114,11 +115,13 @@ def merge_grasp_candidates(
     """
     if translation_threshold_mm <= 0 or rotation_threshold_deg <= 0:
         raise ValueError("merge thresholds must be positive")
+    if not isinstance(score_key, str) or not score_key:
+        raise ValueError("score_key must be a non-empty string")
 
     validated = []
     for input_index, grasp in enumerate(grasps):
         transform = _validated_pose(grasp)
-        score = _validated_score(grasp)
+        score = _validated_score(grasp, score_key=score_key)
         validated.append((input_index, score, grasp, transform))
     validated.sort(key=lambda item: (-item[1], item[0]))
 

@@ -147,6 +147,18 @@ class GraspMergeTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             merge_grasp_candidates([{"T_gripper_object": np.eye(3), "score_total": 0.5}])
 
+    def test_can_select_representative_with_explicit_v4_score(self):
+        from grasp_merge import merge_grasp_candidates
+
+        v3_high = _grasp(0.99, translation=(0.0, 0.0, 0.0), score_total_v4=0.2)
+        v4_high = _grasp(0.80, translation=(1.0, 0.0, 0.0), score_total_v4=0.9)
+
+        merged = merge_grasp_candidates([v3_high, v4_high], score_key="score_total_v4")
+
+        self.assertEqual(len(merged), 1)
+        self.assertEqual(merged[0]["score_total"], 0.80)
+        self.assertEqual(merged[0]["score_total_v4"], 0.9)
+
 
 if __name__ == "__main__":
     unittest.main()

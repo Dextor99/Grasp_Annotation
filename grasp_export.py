@@ -70,6 +70,21 @@ def export_grasp_annotations(result, output_directory):
         ),
         "depths_mm": _array(records, "depth_mm", (), dtype=float),
         "scores_total": _array(records, "score_total", (), dtype=float),
+        "scores_total_v3": _array(
+            records, "score_total_v3", (), dtype=float, fallback_field="score_total"
+        ),
+        "scores_total_v4": _array(
+            records, "score_total_v4", (), dtype=float, fallback_field="score_total"
+        ),
+        "scores_v4_normal": _array(
+            records, "score_v4_normal", (), dtype=float, default_value=0.0
+        ),
+        "scores_v4_support": _array(
+            records, "score_v4_support", (), dtype=float, default_value=0.0
+        ),
+        "scores_v4_stability": _array(
+            records, "score_v4_stability", (), dtype=float, default_value=0.0
+        ),
         "view_ids": _array(records, "view_id", (), dtype=np.int64),
         "anchor_ids": _array(records, "anchor_id", (), dtype=np.int64),
         "approach_ids": _array(records, "approach_id", (), dtype=np.int64),
