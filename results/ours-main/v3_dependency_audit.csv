@@ -1,0 +1,7 @@
+check,passed,evidence
+v3_geometry_input_for_refinement,True,"V3 computes inner_points_local before closure refinement; this supplies geometry, not final ranking."
+v3_not_used_for_merge_selection,True,merge_grasp_candidates receives score_key=score_total_v4 and contains no V3 score key.
+v3_not_used_for_threshold_filter,True,"No V3 threshold, Top-K truncation, or candidate rejection appears in pipeline/merge."
+v4_score_used_for_merge,True,V4 scoring occurs after post-refinement validation and before SE(3) merge.
+v4_score_used_for_final_export,True,normalize_grasp_record exports score_total from score_total_v4 when present.
+v3_fields_preserved,True,Final records retain both score_total_v3 and score_total_v4.

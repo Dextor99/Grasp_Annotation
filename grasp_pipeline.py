@@ -109,6 +109,7 @@ def run_grasp_annotation(object_path, config=None):
     )
     meta = {
         "object": str(Path(object_path)),
+        "algorithm_version": "v1.2-grasp-annotation",
         "units": "mm",
         "input_scale_to_mm": float(object_data.scale),
         "point_count": int(len(object_data.points)),

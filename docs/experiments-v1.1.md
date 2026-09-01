@@ -232,5 +232,17 @@ Generate → V3 auxiliary score → Closure refine → Post-refinement validatio
 | shuilongtou | 1,524 | 790 | v4 | passed |
 | cat | 632 | 632 | v4 | passed |
 
+## V3 依赖审计与 v1.2 冻结准备
+
+自动审计确认 V3 只用于生成 `inner_points_local`、闭合修正所需的几何诊断和历史字段保存，
+不会参与 V4 阈值筛选、Top-K 截断或 SE(3) 代表选择；V4 控制最终评分、合并和导出。
+审计报告位于 `results/ours-main/v3_dependency_audit.csv`。
+
+当前集成版本已准备冻结为 `v1.2-grasp-annotation`，算法版本与评分版本分别为
+`v1.2-grasp-annotation` 和 `v4`。HQ 阈值尚未自动决定，避免用结果分布反向挑选阈值。
+已从 `juxing`、`shuilongtou`、`cat` 的 smoke 结果生成 90 条人工 calibration 模板：
+`results/v4_calibration_template.csv`。其中每个对象包含 15 条 V4 高分候选和 15 条低分候选，
+`human_label` 与 `notes` 均留空，完成人工 good/bad 标注后再冻结 `V4_HIGH_QUALITY_THRESHOLD`。
+
 结果目录为 `results/v4-integration-smoke/<object>/`。这三组结果用于验证集成链路，
 不覆盖原有 `v1.1` 实验目录；正式六对象重跑应在此 smoke 通过后单独执行。

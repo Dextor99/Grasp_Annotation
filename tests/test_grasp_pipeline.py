@@ -76,6 +76,7 @@ class GraspPipelineTests(unittest.TestCase):
         )
         self.assertEqual(result.meta["merge_reduction_ratio"], 0.5)
         self.assertEqual(result.meta["units"], "mm")
+        self.assertEqual(result.meta["algorithm_version"], "v1.2-grasp-annotation")
         self.assertEqual(result.meta["config"]["mode"], "cone")
         self.assertIs(generate.call_args.kwargs["object_data"], object_data)
         self.assertIs(generate.call_args.kwargs["config"], config)
