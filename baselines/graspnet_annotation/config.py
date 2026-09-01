@@ -30,7 +30,10 @@ class DenseAnnotationConfig:
     height_m: float = 0.02
     depth_base_m: float = 0.02
     finger_width_m: float = 0.01
+    bottom_thickness_m: float = 0.1
     max_width_m: float = 0.12
+    hole_size_m: float = 0.018
+    width_loose_factor_m: float = 0.004
     empty_thresh: int = 10
     collision_margin_m: float = 0.004
     friction_coefficients: tuple[float, ...] = _FRICTION_COEFFICIENTS
@@ -43,7 +46,10 @@ class DenseAnnotationConfig:
                 raise ValueError(f"{name} must be a positive integer")
         if not self.depths_m or any(float(depth) <= 0 for depth in self.depths_m):
             raise ValueError("depths_m must contain positive values")
-        for name in ("voxel_size_m", "height_m", "depth_base_m", "finger_width_m", "max_width_m", "collision_margin_m"):
+        for name in (
+            "voxel_size_m", "height_m", "depth_base_m", "finger_width_m", "bottom_thickness_m",
+            "max_width_m", "hole_size_m", "width_loose_factor_m", "collision_margin_m",
+        ):
             if float(getattr(self, name)) <= 0:
                 raise ValueError(f"{name} must be positive")
         if any(not 0.0 < float(mu) <= 1.0 for mu in self.friction_coefficients):
@@ -75,7 +81,8 @@ class DenseAnnotationConfig:
             "official_topology": ["num_views", "num_angles", "depths_m"],
             "public_reference_default": [
                 "surface_samples", "voxel_size_m", "max_grasp_points", "height_m",
-                "depth_base_m", "finger_width_m", "max_width_m", "empty_thresh", "collision_margin_m",
+                "depth_base_m", "finger_width_m", "bottom_thickness_m", "max_width_m",
+                "hole_size_m", "width_loose_factor_m", "empty_thresh", "collision_margin_m",
             ],
             "local_baseline_config": ["input_unit", "seed", "friction_coefficients"],
         }

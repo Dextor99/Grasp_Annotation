@@ -74,7 +74,7 @@ class GraspNetExportTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary_directory:
             output = Path(temporary_directory) / "run"
             output.mkdir()
-            export_annotation_run(output, labels, {"units": "m"}, [], config=config)
+            export_annotation_run(output, labels, {"units": "m"}, [])
             self.assertTrue((output / "summary.json").is_file())
 
 

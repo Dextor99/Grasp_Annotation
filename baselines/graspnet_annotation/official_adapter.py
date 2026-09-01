@@ -98,3 +98,100 @@ def evaluate_official_collision(
         outlier=float(outlier_m), empty_thresh=int(empty_thresh), return_dexgrasps=False,
     )
     return np.asarray(collision[0], dtype=bool), np.asarray(empty[0], dtype=bool)
+
+
+def evaluate_official_collision_with_dexgrasps(
+    grasps: np.ndarray,
+    model_points_m: np.ndarray,
+    scene_points_m: np.ndarray | None = None,
+    *,
+    outlier_m: float = 0.05,
+    empty_thresh: int = 10,
+) -> tuple[np.ndarray, np.ndarray, list]:
+    """Run official collision detection and return Dex-Net pose objects."""
+
+    grasps = np.asarray(grasps, dtype=np.float32)
+    model = np.asarray(model_points_m, dtype=np.float32)
+    scene = model if scene_points_m is None else np.asarray(scene_points_m, dtype=np.float32)
+    if grasps.ndim != 2 or grasps.shape[1] != 17:
+        raise ValueError(f"grasps must have shape (N, 17), got {grasps.shape}")
+    if model.ndim != 2 or model.shape[1] != 3 or len(model) == 0:
+        raise ValueError("model_points_m must be a non-empty (N, 3) array")
+    if scene.ndim != 2 or scene.shape[1] != 3 or len(scene) == 0:
+        raise ValueError("scene_points_m must be a non-empty (N, 3) array")
+    try:
+        eval_utils = importlib.import_module("graspnetAPI.utils.eval_utils")
+    except ImportError as exc:
+        raise OfficialBackendUnavailable("official collision evaluator is unavailable") from exc
+    collision, empty, dexgrasps = eval_utils.collision_detection(
+        [grasps], [model], [None], [np.eye(4, dtype=np.float32)], scene,
+        outlier=float(outlier_m), empty_thresh=int(empty_thresh), return_dexgrasps=True,
+    )
+    return np.asarray(collision[0], dtype=bool), np.asarray(empty[0], dtype=bool), dexgrasps[0]
+
+
+def build_force_closure_configs(friction_coefficients=(1.0, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1)) -> tuple[np.ndarray, dict]:
+    """Build the official GN-Full annotation friction sweep (higher to lower)."""
+
+    try:
+        config_module = importlib.import_module("graspnetAPI.utils.config")
+        quality_config = importlib.import_module("graspnetAPI.utils.dexnet.grasping.grasp_quality_config")
+    except ImportError as exc:
+        raise OfficialBackendUnavailable("official Dex-Net force-closure evaluator is unavailable") from exc
+    # Keep Python/float64 keys so ``round`` inside the official evaluator
+    # matches the dictionary keys exactly (np.float32(0.9) does not).
+    fc_list = np.asarray(tuple(float(value) for value in friction_coefficients), dtype=np.float64)
+    if fc_list.ndim != 1 or len(fc_list) == 0 or not np.all(np.isfinite(fc_list)):
+        raise ValueError("friction_coefficients must be a non-empty finite sequence")
+    base = config_module.get_config()
+    configs = {}
+    for value in fc_list:
+        key = round(float(value), 2)
+        base["metrics"]["force_closure"]["friction_coef"] = key
+        configs[key] = quality_config.GraspQualityConfigFactory.create_config(base["metrics"]["force_closure"])
+    return fc_list, configs
+
+
+def score_official_force_closure(dex_grasp, dexnet_model, friction_coefficients=(1.0, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1)) -> float:
+    """Return the official minimum friction coefficient, or ``-1`` invalid."""
+
+    if dex_grasp is None:
+        return -1.0
+    try:
+        eval_utils = importlib.import_module("graspnetAPI.utils.eval_utils")
+        fc_list, configs = build_force_closure_configs(friction_coefficients)
+        score = eval_utils.get_grasp_score(dex_grasp, dexnet_model, fc_list, configs)
+    except (ImportError, TypeError, ValueError, RuntimeError):
+        raise
+    return -1.0 if score is None or float(score) < 0 else float(score)
+
+
+def score_official_force_closure_prepared(dex_grasp, dexnet_model, fc_list: np.ndarray, quality_configs: dict) -> float:
+    """Score with pre-built official configs to avoid rebuilding them per grasp."""
+
+    if dex_grasp is None:
+        return -1.0
+    try:
+        eval_utils = importlib.import_module("graspnetAPI.utils.eval_utils")
+        score = eval_utils.get_grasp_score(dex_grasp, dexnet_model, fc_list, quality_configs)
+    except (ImportError, TypeError, ValueError, RuntimeError):
+        raise
+    return -1.0 if score is None or float(score) < 0 else float(score)
+
+
+def build_dexnet_grasp(grasp_point_m: np.ndarray, rotation: np.ndarray, depth_m: float, width_m: float):
+    """Convert a surface-point pose to the official Dex-Net parallel-jaw pose."""
+
+    if float(depth_m) <= 0 or float(width_m) <= 0:
+        raise ValueError("depth_m and width_m must be positive")
+    try:
+        utils = importlib.import_module("graspnetAPI.utils.utils")
+        grasp_module = importlib.import_module("graspnetAPI.utils.dexnet.grasping.grasp")
+    except ImportError as exc:
+        raise OfficialBackendUnavailable("official Dex-Net grasp conversion is unavailable") from exc
+    point = np.asarray(grasp_point_m, dtype=np.float32)
+    matrix = np.asarray(rotation, dtype=np.float32)
+    center = point + matrix @ np.array([float(depth_m), 0.0, 0.0], dtype=np.float32)
+    binormal, approach_angle = utils.matrix_to_dexnet_params(matrix)
+    cls = grasp_module.ParallelJawPtGrasp3D
+    return cls(cls.configuration_from_params(center, binormal, float(width_m), approach_angle), float(depth_m))

@@ -50,3 +50,22 @@ F:\Miniconda\envs\graspnet_baseline_py39_clean\Scripts\python.exe `
   --obj baselines\graspnet_annotation\assets\2\2_repaired.obj `
   --grid-dim 64 --padding 5
 ```
+
+## GN-Full runner
+
+Run a complete streamed object annotation with the official friction sweep:
+
+```powershell
+$env:PYTHONPATH = (Get-Location).Path
+F:\Miniconda\envs\graspnet_baseline_py39_clean\Scripts\python.exe `
+  -m baselines.graspnet_annotation.run_graspnet_baseline `
+  --mesh baselines\graspnet_annotation\assets\debug_cube\debug_cube.obj `
+  --input-unit m `
+  --sdf-prefix baselines\graspnet_annotation\assets\debug_cube\debug_cube `
+  --output results\graspnet-baseline\debug-cube-full
+```
+
+For a bounded smoke test, add `--max-force-closure-candidates N`.  The output
+then records `force_closure_truncated=true`; it must not be used as a complete
+GN-Full annotation.  Candidate geometry is always evaluated for all
+14,400 slots, while Dex-Net scoring is the deliberately expensive stage.

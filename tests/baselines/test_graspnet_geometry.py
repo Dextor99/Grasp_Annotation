@@ -12,6 +12,25 @@ def _cube_points(extent_x=0.04, extent_y=0.04, extent_z=0.04, step=0.01):
 
 
 class GraspNetGeometryTests(unittest.TestCase):
+    def test_adaptive_width_uses_inner_region_and_returns_official_masks(self):
+        from baselines.graspnet_annotation.gripper_geometry import evaluate_adaptive_width
+
+        result = evaluate_adaptive_width(
+            _cube_points(), np.zeros(3), np.eye(3), depth_m=0.02,
+            max_width_m=0.12, height_m=0.02, depth_base_m=0.02,
+            finger_width_m=0.01, empty_thresh=10,
+        )
+        self.assertGreater(result.width_m, 0.0)
+        self.assertLessEqual(result.width_m, 0.12)
+        self.assertFalse(result.collision)
+        self.assertFalse(result.empty)
+
+    def test_analyze_width_rejects_empty_points(self):
+        from baselines.graspnet_annotation.gripper_geometry import analyze_width
+
+        with self.assertRaisesRegex(ValueError, "non-empty"):
+            analyze_width(np.empty(0))
+
     def test_adaptive_width_is_bounded_and_positive(self):
         from baselines.graspnet_annotation.gripper_geometry import estimate_opening_m
 

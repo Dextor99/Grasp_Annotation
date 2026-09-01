@@ -38,6 +38,15 @@ class GraspNetOfficialAdapterTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "shape"):
             PointEvaluation(np.zeros(shape), np.zeros((3, 3), dtype=bool), np.zeros(shape))
 
+    @unittest.skipUnless(importlib.util.find_spec("graspnetAPI"), "requires the dedicated GN-Full environment")
+    def test_force_closure_sweep_has_annotation_order_and_ten_levels(self):
+        from baselines.graspnet_annotation.official_adapter import build_force_closure_configs
+
+        values, configs = build_force_closure_configs()
+        self.assertEqual(len(values), 10)
+        self.assertEqual([round(float(value), 1) for value in values], [1.0, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1])
+        self.assertEqual(len(configs), 10)
+
 
 if __name__ == "__main__":
     unittest.main()
