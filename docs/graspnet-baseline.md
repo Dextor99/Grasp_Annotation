@@ -48,8 +48,11 @@ F:\Miniconda\envs\graspnet_baseline_py39_clean\Scripts\python.exe `
   scripts\baselines\generate_sdf.py `
   --sdf-exe C:\path\to\sdf_gen.exe `
   --obj baselines\graspnet_annotation\assets\2\2_repaired.obj `
-  --grid-dim 64 --padding 5
+  --grid-dim 100 --padding 5
 ```
+
+The default is the formal `100^3` grid.  A `64^3` grid is reserved for a
+quick debug sanity check and must not be mixed with formal GN-Full results.
 
 ## GN-Full runner
 
@@ -69,3 +72,24 @@ For a bounded smoke test, add `--max-force-closure-candidates N`.  The output
 then records `force_closure_truncated=true`; it must not be used as a complete
 GN-Full annotation.  Candidate geometry is always evaluated for all
 14,400 slots, while Dex-Net scoring is the deliberately expensive stage.
+
+For formal runs, first create a geometry-only directory with
+`--skip-force-closure`. Then launch resumable 100-candidate fresh-process
+shards and merge them only after every candidate has a score:
+
+```powershell
+F:\Miniconda\envs\graspnet_baseline_py39_clean\Scripts\python.exe `
+  scripts\baselines\run_force_closure_shards.py `
+  --geometry-run results\graspnet-baseline\object-geometry `
+  --sdf-prefix baselines\graspnet_annotation\assets\2\2_repaired `
+  --shard-dir results\graspnet-baseline\object-fc-shards
+
+F:\Miniconda\envs\graspnet_baseline_py39_clean\Scripts\python.exe `
+  scripts\baselines\merge_force_closure_shards.py `
+  --geometry-run results\graspnet-baseline\object-geometry `
+  --shard-dir results\graspnet-baseline\object-fc-shards `
+  --output results\graspnet-baseline\object-complete
+```
+
+The merger rejects duplicate/missing IDs, unscored candidates, or any
+`error_mask`; only a zero-error merge is a complete GN-Full result.

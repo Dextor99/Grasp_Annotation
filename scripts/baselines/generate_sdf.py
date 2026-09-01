@@ -7,11 +7,17 @@ import subprocess
 from pathlib import Path
 
 
+# The formal GN-Full protocol uses a 100^3 signed-distance grid.  Smaller
+# grids are still useful for quick sanity checks, but must be requested
+# explicitly so a debug run is never mistaken for a formal annotation.
+DEFAULT_GRID_DIM = 100
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--sdf-exe", type=Path, required=True)
     parser.add_argument("--obj", type=Path, required=True)
-    parser.add_argument("--grid-dim", type=int, default=64)
+    parser.add_argument("--grid-dim", type=int, default=DEFAULT_GRID_DIM)
     parser.add_argument("--padding", type=int, default=5)
     args = parser.parse_args()
     if not args.sdf_exe.is_file():

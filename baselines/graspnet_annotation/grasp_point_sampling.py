@@ -38,6 +38,15 @@ def sample_grasp_points(mesh: trimesh.Trimesh, config: DenseAnnotationConfig, *,
     if cap <= 0:
         raise ValueError("max_points must be positive")
     if len(reduced) > cap:
-        indices = np.linspace(0, len(reduced) - 1, cap, dtype=np.int64)
+        # Select a deterministic subset without privileging the voxelization
+        # order (which is an implementation detail of the sampler).
+        indices = np.sort(np.random.default_rng(int(config.seed)).choice(len(reduced), cap, replace=False))
         reduced = reduced[indices]
     return np.asarray(reduced, dtype=np.float32)
+
+
+def sample_collision_points(mesh: trimesh.Trimesh, config: DenseAnnotationConfig) -> np.ndarray:
+    """Build the independent 3 mm collision/width cloud (no grasp-point cap)."""
+
+    sampled = _sample_surface(mesh, int(config.surface_samples), config.seed + 1)
+    return _voxel_reduce(sampled, config.collision_voxel_size_m).astype(np.float32)

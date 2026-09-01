@@ -23,6 +23,7 @@ class DenseAnnotationConfig:
     seed: int = 0
     surface_samples: int = 6000
     voxel_size_m: float = 0.006
+    collision_voxel_size_m: float = 0.003
     max_grasp_points: int = 1200
     num_views: int = 300
     num_angles: int = 12
@@ -36,6 +37,9 @@ class DenseAnnotationConfig:
     width_loose_factor_m: float = 0.004
     empty_thresh: int = 10
     collision_margin_m: float = 0.004
+    sdf_dim: int = 100
+    sdf_padding: int = 5
+    force_closure_shard_size: int = 100
     friction_coefficients: tuple[float, ...] = _FRICTION_COEFFICIENTS
 
     def __post_init__(self) -> None:
@@ -47,11 +51,14 @@ class DenseAnnotationConfig:
         if not self.depths_m or any(float(depth) <= 0 for depth in self.depths_m):
             raise ValueError("depths_m must contain positive values")
         for name in (
-            "voxel_size_m", "height_m", "depth_base_m", "finger_width_m", "bottom_thickness_m",
+            "voxel_size_m", "collision_voxel_size_m", "height_m", "depth_base_m", "finger_width_m", "bottom_thickness_m",
             "max_width_m", "hole_size_m", "width_loose_factor_m", "collision_margin_m",
         ):
             if float(getattr(self, name)) <= 0:
                 raise ValueError(f"{name} must be positive")
+        for name in ("sdf_dim", "sdf_padding", "force_closure_shard_size"):
+            if int(getattr(self, name)) != getattr(self, name) or getattr(self, name) <= 0:
+                raise ValueError(f"{name} must be a positive integer")
         if any(not 0.0 < float(mu) <= 1.0 for mu in self.friction_coefficients):
             raise ValueError("friction_coefficients must be in (0, 1]")
 
@@ -80,9 +87,9 @@ class DenseAnnotationConfig:
         return {
             "official_topology": ["num_views", "num_angles", "depths_m"],
             "public_reference_default": [
-                "surface_samples", "voxel_size_m", "max_grasp_points", "height_m",
+                "surface_samples", "voxel_size_m", "collision_voxel_size_m", "max_grasp_points", "height_m",
                 "depth_base_m", "finger_width_m", "bottom_thickness_m", "max_width_m",
-                "hole_size_m", "width_loose_factor_m", "empty_thresh", "collision_margin_m",
+                "hole_size_m", "width_loose_factor_m", "empty_thresh", "collision_margin_m", "sdf_dim", "sdf_padding",
             ],
-            "local_baseline_config": ["input_unit", "seed", "friction_coefficients"],
+            "local_baseline_config": ["input_unit", "seed", "friction_coefficients", "force_closure_shard_size"],
         }
