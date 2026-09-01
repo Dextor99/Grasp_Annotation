@@ -123,15 +123,20 @@ pipeline on the selected PLY objects:
 F:\Miniconda\envs\py310\python.exe `
   scripts/common_eval/reconstruct_ply_reference.py `
   --manifest configs\formal_evaluation_objects.json `
-  --output-root baselines\graspnet_annotation\assets\reconstructed `
+  --output-root baselines\graspnet_annotation\assets\reconstructed-global-sign `
   --object model2 --object juxing --object shuilongtou `
   --object yuanzhu --object huixing --object cat
 ```
 
 Each object receives `reference_reconstructed.obj` and `asset_report.json`.
-The report must show `watertight=true`, acceptable normalized p95 surface
-error, and an existing 100³/5-padding SDF before the object is admitted to
-GN-style evaluation.  If the fixed reconstruction fails these gates, report
+The fixed protocol first runs `orient_normals_consistent_tangent_plane(30)`
+and then resolves the remaining orientation ambiguity with one global median
+radial sign (never independent per-point flips). The report records a fixed
+audit sample seed (`0`) and strict acceptance checks: watertight, exactly one
+face component, normalized p95 surface error `<=0.02`, relative bbox
+extent/center error `<=0.05`, an existing 100³/5-padding SDF, and successful
+official Dex-Net OBJ/SDF loading. Only `gate_pass=true` objects may enter
+GN-style evaluation. If the fixed reconstruction fails these gates, report
 the object as unavailable rather than tuning reconstruction parameters for it.
 
 After each object has its own corrected comparison CSV, aggregate without
