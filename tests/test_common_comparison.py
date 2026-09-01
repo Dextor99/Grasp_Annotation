@@ -1,4 +1,7 @@
 import unittest
+import json
+from pathlib import Path
+from tempfile import TemporaryDirectory
 
 import numpy as np
 
@@ -40,6 +43,29 @@ class CommonComparisonTests(unittest.TestCase):
         self.assertAlmostEqual(result["estimated_n_mu_le_04"], 20.0)
         self.assertAlmostEqual(result["estimated_hq_yield"], 0.02)
         self.assertTrue(result["is_estimate"])
+
+    def test_weighted_statistics_replace_legacy_full_estimate(self):
+        from scripts.common_eval.build_comparison import apply_stratified_statistics
+
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "stats.json"
+            path.write_text(json.dumps({
+                "weighted_fc_rate": 0.12,
+                "weighted_hq_probability": 0.03,
+                "weighted_hq_rate_among_fc": 0.25,
+                "weighted_mean_mu": 0.51,
+                "estimated_fc_valid": 240.0,
+                "estimated_n_mu_le_04": 60.0,
+                "estimated_fc_yield_raw": 0.024,
+                "estimated_hq_yield_raw": 0.006,
+                "estimated_hq_rate_among_fc": 0.25,
+            }), encoding="utf-8")
+            row = {"is_estimate": False}
+            apply_stratified_statistics(row, path)
+            self.assertTrue(row["is_estimate"])
+            self.assertEqual(row["estimated_common_fc_valid"], 240.0)
+            self.assertEqual(row["estimated_n_mu_le_04"], 60.0)
+            self.assertEqual(row["weighted_mean_mu"], 0.51)
 
 
 if __name__ == "__main__":

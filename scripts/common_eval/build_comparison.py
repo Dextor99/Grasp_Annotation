@@ -17,9 +17,13 @@ COMPARISON_FIELDS = (
     "common_eval_count", "common_fc_valid", "common_fc_valid_rate",
     "n_mu_le_04", "hq_rate_mu04", "mean_mu", "hq_yield",
     "fc_yield_raw", "hq_yield_raw", "hq_rate_among_fc",
+    "weighted_fc_rate", "weighted_hq_probability", "weighted_hq_rate_among_fc",
+    "weighted_mean_mu", "unweighted_fc_rate", "unweighted_hq_probability",
+    "unweighted_mean_mu", "population_geometry_valid", "sample_count",
     "native_wall_time_s", "common_eval_wall_time_s",
     "is_estimate", "estimated_common_fc_valid", "estimated_n_mu_le_04",
     "estimated_hq_yield", "estimated_fc_yield_raw", "estimated_hq_yield_raw",
+    "estimated_hq_rate_among_fc",
 )
 
 
@@ -50,6 +54,15 @@ def summarize_scores(
         "fc_yield_raw": float(valid.sum() / n_candidates) if n_candidates else 0.0,
         "hq_yield_raw": float(hq.sum() / n_candidates) if n_candidates else 0.0,
         "hq_rate_among_fc": float(hq.sum() / valid.sum()) if valid.any() else 0.0,
+        "weighted_fc_rate": "",
+        "weighted_hq_probability": "",
+        "weighted_hq_rate_among_fc": "",
+        "weighted_mean_mu": "",
+        "unweighted_fc_rate": float(valid.sum() / common_eval_count) if common_eval_count else 0.0,
+        "unweighted_hq_probability": float(hq.sum() / common_eval_count) if common_eval_count else 0.0,
+        "unweighted_mean_mu": float(valid_scores.mean()) if len(valid_scores) else -1.0,
+        "population_geometry_valid": int(n_geometry_valid),
+        "sample_count": common_eval_count,
         "native_wall_time_s": float(native_wall_time_s),
         "common_eval_wall_time_s": float(common_eval_wall_time_s),
         "is_estimate": False,
@@ -58,6 +71,7 @@ def summarize_scores(
         "estimated_hq_yield": "",
         "estimated_fc_yield_raw": "",
         "estimated_hq_yield_raw": "",
+        "estimated_hq_rate_among_fc": "",
     }
 
 
@@ -139,6 +153,28 @@ def row_from_ours_common(summary_path: Path) -> dict[str, Any]:
     return row
 
 
+def apply_stratified_statistics(row: dict[str, Any], stats_path: Path) -> dict[str, Any]:
+    """Attach weighted full-population estimates to an observed subset row."""
+    stats = _load_json(stats_path)
+    for field in (
+        "weighted_fc_rate", "weighted_hq_probability", "weighted_hq_rate_among_fc",
+        "weighted_mean_mu", "unweighted_fc_rate", "unweighted_hq_probability",
+        "unweighted_mean_mu", "population_geometry_valid", "sample_count",
+    ):
+        if field in stats:
+            row[field] = stats[field]
+    row.update({
+        "is_estimate": True,
+        "estimated_common_fc_valid": stats.get("estimated_fc_valid", ""),
+        "estimated_n_mu_le_04": stats.get("estimated_n_mu_le_04", ""),
+        "estimated_hq_yield": stats.get("estimated_hq_yield_raw", ""),
+        "estimated_fc_yield_raw": stats.get("estimated_fc_yield_raw", ""),
+        "estimated_hq_yield_raw": stats.get("estimated_hq_yield_raw", ""),
+        "estimated_hq_rate_among_fc": stats.get("estimated_hq_rate_among_fc", stats.get("weighted_hq_rate_among_fc", "")),
+    })
+    return row
+
+
 def write_comparison(rows: list[dict[str, Any]], output_csv: Path) -> None:
     output_csv.parent.mkdir(parents=True, exist_ok=True)
     with output_csv.open("w", newline="", encoding="utf-8") as handle:
@@ -156,6 +192,7 @@ def main(argv=None) -> int:
     parser.add_argument("--gn-full-geometry", type=Path)
     parser.add_argument("--gn-full-subset", type=Path)
     parser.add_argument("--gn-full-subset-shards", type=Path)
+    parser.add_argument("--gn-full-stats", type=Path, help="weighted stratified_statistics.json")
     parser.add_argument("--ours-common-summary", type=Path)
     args = parser.parse_args(argv)
     rows: list[dict[str, Any]] = []
@@ -174,11 +211,14 @@ def main(argv=None) -> int:
             native_wall_time_s=float(geometry_summary.get("timing", {}).get("total", _timing_total(args.gn_full_geometry))),
             common_eval_wall_time_s=_elapsed_sum(args.gn_full_subset_shards or args.gn_full_subset, "subset_fc_shard_*.json"),
         )
-        base.update(estimate_full_from_subset(
-            n_candidates=base["n_candidates"], n_geometry_valid=base["n_geometry_valid"],
-            subset_fc_valid=base["common_fc_valid"], subset_hq=base["n_mu_le_04"],
-            subset_common_eval=base["common_eval_count"],
-        ))
+        if args.gn_full_stats:
+            apply_stratified_statistics(base, args.gn_full_stats)
+        else:
+            base.update(estimate_full_from_subset(
+                n_candidates=base["n_candidates"], n_geometry_valid=base["n_geometry_valid"],
+                subset_fc_valid=base["common_fc_valid"], subset_hq=base["n_mu_le_04"],
+                subset_common_eval=base["common_eval_count"],
+            ))
         rows.append(base)
     if args.ours_common_summary:
         rows.append(row_from_ours_common(args.ours_common_summary))

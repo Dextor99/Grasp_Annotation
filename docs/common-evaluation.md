@@ -41,6 +41,26 @@ F:\Miniconda\envs\graspnet_baseline_py39_clean\Scripts\python.exe `
 The merge is strict: duplicate, missing, extra, error, unscored, or
 non-finite rows abort the run.
 
+### Weighted stratified aggregation
+
+The 10k subset is balanced by grasp point rather than by the number of
+geometry-valid candidates at each point.  Aggregate it against the complete
+geometry pass before using it as a full-run estimate:
+
+```powershell
+$env:PYTHONPATH=(Get-Location).Path
+F:\Miniconda\envs\py310\python.exe `
+  scripts/common_eval/summarize_stratified_subset.py `
+  --geometry-run results\graspnet-baseline\model2-full-geometry `
+  --subset-run results\graspnet-baseline\model2-full-fc-subset10k\merged `
+  --output-dir results\common-eval\model2-gn-full-stratified
+```
+
+The JSON/CSV retain unweighted subset audit metrics and add candidate-weighted
+FC/HQ rates, weighted mean :math:`\mu`, and full-population estimates.  The
+CLI validates that point population sizes sum to the exact full geometry-valid
+count and that sampled sizes sum to the manifest size.
+
 ## Ours adapter
 
 The adapter evaluates every Ours record in input order.  It preserves the
@@ -70,6 +90,7 @@ F:\Miniconda\envs\py39\python.exe scripts/common_eval/build_comparison.py `
   --gn-full-geometry results\graspnet-baseline\model2-full-geometry `
   --gn-full-subset results\graspnet-baseline\model2-full-fc-subset10k\merged `
   --gn-full-subset-shards results\graspnet-baseline\model2-full-fc-subset10k\shards `
+  --gn-full-stats results\common-eval\model2-gn-full-stratified\stratified_statistics.json `
   --ours-common-summary results\common-eval\model2-ours-corrected\summary.json `
   --output-csv results\common-eval\model2-comparison.csv
 ```
