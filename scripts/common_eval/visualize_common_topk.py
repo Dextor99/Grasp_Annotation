@@ -19,6 +19,12 @@ from grasp_visualization import make_gripper_lineset, make_object_cloud, show_ge
 from scripts.common_eval.ours_official_common_eval import OURS_TO_OFFICIAL_AXES
 
 
+def object_loader_argument(path: str | Path) -> str:
+    """Return a plain string for Open3D APIs that reject ``Path`` objects."""
+
+    return str(path)
+
+
 def official_candidate_to_record(
     point_m: np.ndarray,
     rotation_official: np.ndarray,
@@ -109,7 +115,7 @@ def main(argv=None) -> int:
     args = parser.parse_args(argv)
     if args.topk <= 0:
         raise ValueError("--topk must be positive")
-    cloud, object_data = make_object_cloud(args.object)
+    cloud, object_data = make_object_cloud(object_loader_argument(args.object))
     ours = _top_ours(args.ours_results, args.ours_common, args.topk)
     gn = _top_gn(args.gn_run, args.topk, np.asarray(object_data.T_object_world, dtype=float))
     geometries = [cloud]
