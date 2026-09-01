@@ -240,9 +240,45 @@ Generate → V3 auxiliary score → Closure refine → Post-refinement validatio
 
 当前集成版本已准备冻结为 `v1.2-grasp-annotation`，算法版本与评分版本分别为
 `v1.2-grasp-annotation` 和 `v4`。HQ 阈值尚未自动决定，避免用结果分布反向挑选阈值。
-已从 `juxing`、`shuilongtou`、`cat` 的 smoke 结果生成 90 条人工 calibration 模板：
-`results/v4_calibration_template.csv`。其中每个对象包含 15 条 V4 高分候选和 15 条低分候选，
-`human_label` 与 `notes` 均留空，完成人工 good/bad 标注后再冻结 `V4_HIGH_QUALITY_THRESHOLD`。
+已保留一份 90 条 legacy calibration 模板 `results/v4_calibration_template.csv`；当前优先使用
+下面生成的 60 条 quick calibration 集。所有人工标签完成后再冻结 `V4_HIGH_QUALITY_THRESHOLD`。
+
+## 人工 V4 质量标注
+
+快速校准集使用每个对象 20 条样本：V4 分数 P75–P100 随机 7 条、P25–P75 随机 6 条、
+P0–P25 随机 7 条，总计 60 条，随机种子固定为 0。生成命令：
+
+```powershell
+F:\Miniconda\envs\py310\python.exe scripts/create_v4_calibration_set.py `
+  --model juxing=results\v4-integration-smoke\juxing `
+  --model shuilongtou=results\v4-integration-smoke\shuilongtou `
+  --model cat=results\v4-integration-smoke\cat `
+  --quick --seed 0 `
+  --output-csv results\v4-calibration\labels.csv `
+  --manifest-csv results\v4-calibration\manifest.csv
+```
+
+可见标注表为 `results/v4-calibration/labels.csv`，隐藏分数和路径在 `manifest.csv`；
+请只填写 `human_label`：`G`（明确有效）、`B`（明确无效）、`U`（不确定），不确定样本
+不会参与阈值计算。PNG 样本和每页 10 条的 contact sheet 由以下命令生成：
+
+```powershell
+F:\Miniconda\envs\py310\python.exe scripts/render_v4_calibration.py `
+  --manifest-csv results\v4-calibration\manifest.csv `
+  --output-dir results\v4-calibration
+```
+
+填写标签后，用下列命令扫描阈值并执行 leave-one-object-out 检查：
+
+```powershell
+F:\Miniconda\envs\py310\python.exe scripts/calibrate_v4_threshold.py `
+  --labels-csv results\v4-calibration\labels.csv `
+  --manifest-csv results\v4-calibration\manifest.csv `
+  --metrics-csv results\v4-calibration/threshold_metrics.csv `
+  --report-json results\v4-calibration/threshold_report.json
+```
+
+在人工标签完成前，不会把任何阈值写入配置或用于正式实验。
 
 结果目录为 `results/v4-integration-smoke/<object>/`。这三组结果用于验证集成链路，
 不覆盖原有 `v1.1` 实验目录；正式六对象重跑应在此 smoke 通过后单独执行。
