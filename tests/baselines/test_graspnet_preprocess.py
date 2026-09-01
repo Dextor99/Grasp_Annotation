@@ -22,6 +22,16 @@ class GraspNetPreprocessTests(unittest.TestCase):
             with self.assertRaisesRegex(FileNotFoundError, "SDF"):
                 validate_mesh_readiness(mesh, sdf_path=None, require_sdf=True)
 
+    def test_loads_surface_ply_without_mesh_reconstruction(self):
+        from baselines.graspnet_annotation.preprocess import load_surface_ply_in_metres
+
+        ply = Path(__file__).parents[2] / "model" / "juxing.ply"
+        points = load_surface_ply_in_metres(ply, "mm")
+        self.assertEqual(points.ndim, 2)
+        self.assertEqual(points.shape[1], 3)
+        self.assertGreater(len(points), 0)
+        self.assertLessEqual(float(points.max()), 0.2 + 1e-5)
+
 
 if __name__ == "__main__":
     unittest.main()

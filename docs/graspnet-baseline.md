@@ -93,3 +93,26 @@ F:\Miniconda\envs\graspnet_baseline_py39_clean\Scripts\python.exe `
 
 The merger rejects duplicate/missing IDs, unscored candidates, or any
 `error_mask`; only a zero-error merge is a complete GN-Full result.
+
+## Same-surface PLY geometry-only protocol
+
+Poisson OBJ/SDF reconstruction is not a prerequisite for the six-object
+generation comparison. To keep Ours and GN-style on identical input, pass the
+original PLY directly:
+
+```powershell
+$env:PYTHONPATH = (Get-Location).Path
+F:\Miniconda\envs\graspnet_baseline_py39_clean\Scripts\python.exe `
+  -m baselines.graspnet_annotation.run_graspnet_baseline `
+  --surface-ply model\juxing.ply `
+  --input-unit mm `
+  --output results\graspnet-baseline\juxing-ply-geometry `
+  --geometry-only
+```
+
+`--surface-ply` performs deterministic point selection from the PLY, a 6 mm
+grasp-point voxel reduction (capped at 1200 points), and a 3 mm collision
+cloud reduction from the same source points. The official 300 × 12 × 4
+candidate topology is unchanged. This mode intentionally cannot run
+force-closure; OBJ/SDF is reserved for the separate reference-backed quality
+subset.

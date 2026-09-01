@@ -13,7 +13,12 @@ import numpy as np
 from .candidate_generation import iter_candidate_batches
 from .config import DenseAnnotationConfig
 from .export import export_annotation_run
-from .grasp_point_sampling import sample_collision_points, sample_grasp_points
+from .grasp_point_sampling import (
+    sample_collision_points,
+    sample_collision_points_from_surface_points,
+    sample_grasp_points,
+    sample_grasp_points_from_surface_points,
+)
 from .gripper_geometry import evaluate_adaptive_width
 from .label_arrays import RawLabelArrays
 from .official_adapter import (
@@ -22,26 +27,39 @@ from .official_adapter import (
     load_dexnet_model,
     score_official_force_closure_prepared,
 )
-from .preprocess import load_mesh_in_metres, validate_mesh_readiness
+from .preprocess import load_mesh_in_metres, load_surface_ply_in_metres, validate_mesh_readiness
 
 
-def run(mesh_path: str | Path, output: str | Path, *, input_unit: str = "m", sdf_prefix: str | Path | None = None,
+def run(mesh_path: str | Path | None, output: str | Path, *, input_unit: str = "m", sdf_prefix: str | Path | None = None,
         max_points: int | None = None, skip_force_closure: bool = False,
-        max_force_closure_candidates: int | None = None) -> dict:
+        max_force_closure_candidates: int | None = None,
+        surface_ply: str | Path | None = None) -> dict:
     if max_force_closure_candidates is not None and int(max_force_closure_candidates) <= 0:
         raise ValueError("max_force_closure_candidates must be positive")
     if not skip_force_closure and sdf_prefix is None:
         raise ValueError("sdf_prefix is required unless skip_force_closure is enabled")
+    if mesh_path is None and surface_ply is None:
+        raise ValueError("mesh_path or surface_ply is required")
+    if mesh_path is not None and surface_ply is not None:
+        raise ValueError("mesh_path and surface_ply are mutually exclusive")
+    if surface_ply is not None and not skip_force_closure:
+        raise ValueError("surface_ply mode supports geometry-only runs; use a paired mesh/SDF for force closure")
     config = DenseAnnotationConfig.full(input_unit=input_unit)
     started = time.perf_counter()
     sdf_file = None
     if sdf_prefix is not None:
         sdf_path = Path(sdf_prefix)
         sdf_file = sdf_path if sdf_path.suffix.lower() == ".sdf" else sdf_path.with_suffix(".sdf")
-    readiness = validate_mesh_readiness(mesh_path, sdf_file, require_sdf=not skip_force_closure)
-    loaded = load_mesh_in_metres(mesh_path, input_unit)
-    grasp_points = sample_grasp_points(loaded.mesh, config, max_points=max_points)
-    collision_points = sample_collision_points(loaded.mesh, config)
+    if surface_ply is not None:
+        readiness = None
+        surface_points = load_surface_ply_in_metres(surface_ply, input_unit)
+        grasp_points = sample_grasp_points_from_surface_points(surface_points, config, max_points=max_points)
+        collision_points = sample_collision_points_from_surface_points(surface_points, config)
+    else:
+        readiness = validate_mesh_readiness(mesh_path, sdf_file, require_sdf=not skip_force_closure)
+        loaded = load_mesh_in_metres(mesh_path, input_unit)
+        grasp_points = sample_grasp_points(loaded.mesh, config, max_points=max_points)
+        collision_points = sample_collision_points(loaded.mesh, config)
     dex_model = None if skip_force_closure else load_dexnet_model(Path(sdf_prefix).with_suffix("") if Path(sdf_prefix).suffix.lower() == ".sdf" else sdf_prefix)
     fc_list, fc_configs = (None, None) if skip_force_closure else build_force_closure_configs(config.friction_coefficients)
 
@@ -118,8 +136,11 @@ def run(mesh_path: str | Path, output: str | Path, *, input_unit: str = "m", sdf
     stage["export"] = 0.0
     export_started = time.perf_counter()
     summary = {
-        "mesh": str(mesh_path), "input_unit": input_unit, "internal_unit": "m",
-        "mesh_watertight": readiness.is_watertight, "n_input_points": int(len(collision_points)),
+        "mesh": str(mesh_path) if mesh_path is not None else None, "surface_ply": str(surface_ply) if surface_ply is not None else None,
+        "input_source": "surface_ply" if surface_ply is not None else "mesh",
+        "input_unit": input_unit, "internal_unit": "m",
+        "mesh_watertight": readiness.is_watertight if readiness is not None else None,
+        "n_input_points": int(len(collision_points)),
         "n_collision_points": int(len(collision_points)),
         "n_grasp_points": int(len(grasp_points)), "n_candidates": counts["raw_candidates"],
         "n_empty": counts["empty_count"], "n_collision": counts["collision_count"],
@@ -151,7 +172,9 @@ def run(mesh_path: str | Path, output: str | Path, *, input_unit: str = "m", sdf
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--mesh", type=Path, required=True)
+    parser.add_argument("--mesh", type=Path)
+    parser.add_argument("--surface-ply", type=Path,
+                        help="use the original PLY surface directly (geometry-only; no reconstructed OBJ)")
     parser.add_argument("--input-unit", choices=("m", "mm", "cm"), required=True)
     parser.add_argument("--sdf-prefix", type=Path)
     parser.add_argument("--output", type=Path, required=True)
@@ -161,11 +184,14 @@ def main() -> int:
     parser.add_argument("--max-force-closure-candidates", type=int,
                         help="debug limit; leaves unscored candidates at -1 and marks the run truncated")
     args = parser.parse_args()
+    if (args.mesh is None) == (args.surface_ply is None):
+        parser.error("provide exactly one of --mesh or --surface-ply")
     if not args.skip_force_closure and args.sdf_prefix is None:
         parser.error("--sdf-prefix is required unless --skip-force-closure is set")
     result = run(args.mesh, args.output, input_unit=args.input_unit, sdf_prefix=args.sdf_prefix,
                  max_points=args.max_points, skip_force_closure=args.skip_force_closure,
-                 max_force_closure_candidates=args.max_force_closure_candidates)
+                 max_force_closure_candidates=args.max_force_closure_candidates,
+                 surface_ply=args.surface_ply)
     print(result)
     return 0
 

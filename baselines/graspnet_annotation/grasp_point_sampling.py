@@ -50,3 +50,43 @@ def sample_collision_points(mesh: trimesh.Trimesh, config: DenseAnnotationConfig
 
     sampled = _sample_surface(mesh, int(config.surface_samples), config.seed + 1)
     return _voxel_reduce(sampled, config.collision_voxel_size_m).astype(np.float32)
+
+
+def _validate_surface_points(points_m: np.ndarray) -> np.ndarray:
+    points = np.asarray(points_m, dtype=np.float32)
+    if points.ndim != 2 or points.shape[1] != 3:
+        raise ValueError(f"surface points must have shape (N, 3), got {points.shape}")
+    if len(points) == 0 or not np.isfinite(points).all():
+        raise ValueError("surface points must be non-empty and finite")
+    return points
+
+
+def _sample_surface_points(points_m: np.ndarray, count: int, seed: int) -> np.ndarray:
+    points = _validate_surface_points(points_m)
+    count = int(count)
+    if count <= 0:
+        raise ValueError("count must be positive")
+    if len(points) <= count:
+        return points.copy()
+    indices = np.sort(np.random.default_rng(int(seed)).choice(len(points), count, replace=False))
+    return points[indices]
+
+
+def sample_grasp_points_from_surface_points(points_m: np.ndarray, config: DenseAnnotationConfig,
+                                            *, max_points: int | None = None) -> np.ndarray:
+    """Build grasp points directly from a PLY surface cloud (no mesh reconstruction)."""
+    sampled = _sample_surface_points(points_m, int(config.surface_samples), config.seed)
+    reduced = _voxel_reduce(sampled, config.voxel_size_m)
+    cap = int(config.max_grasp_points if max_points is None else max_points)
+    if cap <= 0:
+        raise ValueError("max_points must be positive")
+    if len(reduced) > cap:
+        indices = np.sort(np.random.default_rng(int(config.seed)).choice(len(reduced), cap, replace=False))
+        reduced = reduced[indices]
+    return np.asarray(reduced, dtype=np.float32)
+
+
+def sample_collision_points_from_surface_points(points_m: np.ndarray, config: DenseAnnotationConfig) -> np.ndarray:
+    """Build the 3 mm collision/width cloud directly from the same PLY points."""
+    sampled = _sample_surface_points(points_m, int(config.surface_samples), config.seed + 1)
+    return _voxel_reduce(sampled, config.collision_voxel_size_m).astype(np.float32)

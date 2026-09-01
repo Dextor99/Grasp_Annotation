@@ -37,6 +37,26 @@ class GraspNetPointSamplingTests(unittest.TestCase):
         np.testing.assert_array_equal(sample_grasp_points(mesh, config), sample_grasp_points(mesh, config))
         np.testing.assert_array_equal(sample_collision_points(mesh, config), sample_collision_points(mesh, config))
 
+    def test_ply_surface_sampling_uses_same_voxel_contracts(self):
+        from baselines.graspnet_annotation.config import DenseAnnotationConfig
+        from baselines.graspnet_annotation.grasp_point_sampling import (
+            sample_collision_points_from_surface_points,
+            sample_grasp_points_from_surface_points,
+        )
+
+        points = np.linspace(0.0, 0.2, 1200, dtype=np.float32)[:, None]
+        points = np.hstack((points, np.zeros((len(points), 2), dtype=np.float32)))
+        config = DenseAnnotationConfig.full(surface_samples=300, max_grasp_points=20)
+        grasp = sample_grasp_points_from_surface_points(points, config)
+        collision = sample_collision_points_from_surface_points(points, config)
+        self.assertLessEqual(len(grasp), 20)
+        self.assertGreaterEqual(len(collision), len(grasp))
+        self.assertEqual(grasp.dtype, np.float32)
+        self.assertEqual(collision.dtype, np.float32)
+        np.testing.assert_array_equal(
+            grasp, sample_grasp_points_from_surface_points(points, config)
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

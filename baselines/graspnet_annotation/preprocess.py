@@ -73,3 +73,17 @@ def load_mesh_in_metres(mesh_path: str | Path, input_unit: str) -> LoadedMesh:
     mesh = _as_mesh(trimesh.load_mesh(source_path, process=False), source_path).copy()
     mesh.vertices = convert_vertices_to_meters(mesh.vertices, input_unit)
     return LoadedMesh(mesh=mesh, source_path=source_path, input_unit=input_unit, scale_to_metres=UNIT_TO_METRES[input_unit])
+
+
+def load_surface_ply_in_metres(ply_path: str | Path, input_unit: str) -> np.ndarray:
+    """Load finite PLY surface points directly, without reconstructing a mesh."""
+    import open3d as o3d
+
+    source_path = Path(ply_path)
+    if not source_path.is_file():
+        raise FileNotFoundError(f"Surface PLY not found: {source_path}")
+    cloud = o3d.io.read_point_cloud(str(source_path))
+    points = np.asarray(cloud.points, dtype=np.float64)
+    if points.ndim != 2 or points.shape[1] != 3 or len(points) == 0:
+        raise ValueError(f"Surface PLY has no valid points: {source_path}")
+    return convert_vertices_to_meters(points, input_unit).astype(np.float32)

@@ -31,6 +31,24 @@ class GraspNetExecutionProtocolTests(unittest.TestCase):
         self.assertEqual(summary["n_grasp_points"], 2)
         self.assertEqual(summary["n_candidates"], 2 * 300 * 12 * 4)
 
+    def test_geometry_runner_accepts_surface_ply_without_reconstruction(self):
+        from baselines.graspnet_annotation.run_graspnet_baseline import run
+
+        ply = Path(__file__).parents[2] / "model" / "juxing.ply"
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            fake_views = np.zeros((300, 3), dtype=np.float32)
+            fake_views[:, 2] = 1.0
+            fake_rotations = lambda views, angles: np.repeat(np.eye(3, dtype=np.float32)[None, ...], len(views), axis=0)
+            with patch("baselines.graspnet_annotation.candidate_generation.generate_views", return_value=fake_views), \
+                    patch("baselines.graspnet_annotation.candidate_generation.generate_view_rotations", side_effect=fake_rotations), \
+                    patch("baselines.graspnet_annotation.label_arrays.generate_views", return_value=fake_views), \
+                    patch("baselines.graspnet_annotation.label_arrays.generate_view_rotations", side_effect=fake_rotations):
+                summary = run(None, Path(temporary_directory) / "run", input_unit="mm",
+                              surface_ply=ply, max_points=2, skip_force_closure=True)
+        self.assertEqual(summary["n_grasp_points"], 2)
+        self.assertTrue(summary["surface_ply"])
+        self.assertEqual(summary["input_source"], "surface_ply")
+
     def test_formal_sdf_default_is_100(self):
         from scripts.baselines.generate_sdf import DEFAULT_GRID_DIM
 

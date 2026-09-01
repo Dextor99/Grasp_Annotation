@@ -139,6 +139,12 @@ official Dex-Net OBJ/SDF loading. Only `gate_pass=true` objects may enter
 GN-style evaluation. If the fixed reconstruction fails these gates, report
 the object as unavailable rather than tuning reconstruction parameters for it.
 
+The six-object generation-efficiency comparison does not wait for this
+reconstruction. GN-style geometry-only must use the original PLY through
+`--surface-ply`, with the same deterministic 6 mm/3 mm point-cloud protocol
+used for every object. Reconstructed OBJ/SDF files are restricted to the
+separate mesh-backed force-closure subset.
+
 After each object has its own corrected comparison CSV, aggregate without
 rerunning either method:
 
