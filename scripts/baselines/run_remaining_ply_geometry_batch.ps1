@@ -22,7 +22,9 @@ foreach ($job in $jobs) {
         Write-Host "Skipping completed $($job.name)"
         continue
     }
-    $log = Join-Path $output "geometry-only.log"
+    $log_dir = "results/graspnet-baseline/logs"
+    New-Item -ItemType Directory -Force -Path $log_dir | Out-Null
+    $log = Join-Path $log_dir "$($job.name)-geometry-only.log"
     Write-Host "Running $($job.name) from $($job.ply)"
     & $python -u -m baselines.graspnet_annotation.run_graspnet_baseline `
         --surface-ply $job.ply --input-unit $job.unit --output $output --geometry-only *> $log
