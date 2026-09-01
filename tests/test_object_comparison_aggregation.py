@@ -2,7 +2,7 @@ import csv
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from scripts.common_eval.aggregate_object_comparisons import aggregate_comparisons
+from scripts.common_eval.aggregate_object_comparisons import aggregate_comparisons, validate_object_csvs
 
 
 def _write(path: Path, rows):
@@ -47,3 +47,9 @@ def test_aggregate_uses_weighted_estimates_for_gn_and_direct_ours_metrics():
         assert ours["fc_yield_raw"] == .1
         assert summary["GN-Full-10k-subset"]["n_objects"] == 1
 
+
+def test_validate_object_csvs_reports_all_missing_inputs():
+    with TemporaryDirectory() as directory:
+        root = Path(directory)
+        missing = validate_object_csvs({"model2": root / "model2.csv", "juxing": root / "juxing.csv"})
+        assert missing == ["model2=" + str(root / "model2.csv"), "juxing=" + str(root / "juxing.csv")]

@@ -112,12 +112,23 @@ def _parse_object_csv(values: list[str]) -> dict[str, Path]:
     return parsed
 
 
+def validate_object_csvs(object_csvs: dict[str, Path]) -> list[str]:
+    """Return missing ``OBJECT=CSV`` inputs in deterministic argument order."""
+    return [f"{name}={path}" for name, path in object_csvs.items() if not Path(path).is_file()]
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--object-csv", action="append", required=True, help="OBJECT=per-object comparison CSV")
     parser.add_argument("--output-dir", type=Path, required=True)
     args = parser.parse_args(argv)
     inputs = _parse_object_csv(args.object_csv)
+    missing = validate_object_csvs(inputs)
+    if missing:
+        parser.error(
+            "missing per-object comparison CSV(s): " + ", ".join(missing)
+            + ". Run that object's common-evaluation pipeline first."
+        )
     rows, summary = aggregate_comparisons(inputs)
     args.output_dir.mkdir(parents=True, exist_ok=True)
     detail_path = args.output_dir / "comparison_all_objects.csv"
@@ -138,4 +149,3 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
